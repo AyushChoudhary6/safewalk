@@ -1,24 +1,40 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LocationObjectCoords, LocationSubscription } from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Circle, Marker, Polyline } from 'react-native-maps';
+import { IncidentMarker } from '../components/IncidentMarker';
+import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
+import { RouteDrawer } from '../components/RouteDrawer';
+import { Incident, mockIncidents } from '../data/mockIncidents';
+import { RootStackParamList } from '../navigation/RootNavigator';
 import { getCurrentLocation, requestLocationPermissions, startLocationUpdates } from '../services/locationService';
 import { fetchLocationSuggestions, fetchRoute, LocationSuggestion, RouteProfile } from '../services/mapsService';
+import { calculateRouteRisk, detectIncidentsOnRoute, RouteRiskCalculation, RouteSegment } from '../utils/routeIncidentDetector';
 
 export const HomeScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [location, setLocation] = useState<LocationObjectCoords | null>(null);
   const [destination, setDestination] = useState<{latitude: number, longitude: number} | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [routeParams, setRouteParams] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [routeMode, setRouteMode] = useState<RouteProfile>('driving-car');
   
+  // Incident detection state
+  const [routeSegments, setRouteSegments] = useState<RouteSegment[]>([]);
+  const [activeIncidents, setActiveIncidents] = useState<Incident[]>([]);
+  const [routeRiskInfo, setRouteRiskInfo] = useState<RouteRiskCalculation | null>(null);
+
   const mapRef = useRef<MapView>(null);
   const locationSubRef = useRef<LocationSubscription | null>(null);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceData | null>(null);
 
   useEffect(() => {
     setupLocation();
@@ -98,15 +114,54 @@ export const HomeScreen: React.FC = () => {
     const safeMode = validProfiles.includes(validMode) ? validMode : 'driving-car';
     
     setSearching(true);
-    setRouteCoordinates([]); // Clear previous route
+    setRouteCoordinates([]);
+    setRouteSegments([]);
+    setActiveIncidents([]);
+    setRouteRiskInfo(null);
+    setRouteParams(null);
     
-    const { coordinates, error } = await fetchRoute(location, destLoc, safeMode);
+    const routeData = await fetchRoute(location, destLoc, safeMode);
     
-    if (error || coordinates.length === 0) {
-        const errorMsg = error || 'No route found. Please check your origin and destination.';
+    if (routeData.error || routeData.coordinates.length === 0) {
+        const errorMsg = routeData.error || 'No route found. Please check your origin and destination.';
         Alert.alert('Route Error', errorMsg);
     } else {
-        setRouteCoordinates(coordinates);
+        setRouteCoordinates(routeData.coordinates);
+
+        // -------- LOG 10 SAMPLE COORDINATES ----------
+        const n = routeData.coordinates.length;
+        const sampledPoints = [];
+        if (n <= 10) {
+          sampledPoints.push(...routeData.coordinates);
+        } else {
+          for (let i = 0; i < 10; i++) {
+            const index = Math.floor((i * (n - 1)) / 9);
+            sampledPoints.push(routeData.coordinates[index]);
+          }
+        }
+        console.log(`\n--- 10 Coordinate Pairs (Lat/Lng) between Origin and Destination ---`);
+        const pairsArray = sampledPoints.map(pt => [pt.latitude, pt.longitude]);
+        console.log(JSON.stringify(pairsArray));
+        console.log(`-------------------------------------------------\n`);
+        // ---------------------------------------------
+
+        // Detect incidents along the new route
+        const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
+        const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
+        
+        setActiveIncidents(riskInfo.incidentsOnRoute);
+        setRouteSegments(riskInfo.routeSegments);
+        setRouteRiskInfo(riskInfo);
+
+        setRouteParams({
+            origin: location,
+            destination: destLoc,
+            mode: safeMode,
+            coordinates: routeData.coordinates,
+            distance: routeData.distance,
+            duration: routeData.duration,
+            steps: routeData.steps,
+        });
     }
     
     setSearching(false);
@@ -156,11 +211,44 @@ export const HomeScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <MapView
-        ref={mapRef}
-        style={styles.map}
-        showsUserLocation={true}
-        showsMyLocationButton={false} 
-      >
+          ref={mapRef}
+          style={styles.map}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+        >
+        {location && (
+          <>
+            <Marker
+              coordinate={{ latitude: location.latitude + 0.005, longitude: location.longitude + 0.005 }}
+              title="Central Park"
+              pinColor="green"
+              onPress={() => setSelectedPlace({
+                id: '1',
+                name: 'Central Park',
+                address: '123 Park Ave, New York, NY 10022',
+                duration: '15 min',
+                distance: '2.5 km',
+                type: 'Park',
+                photos: ['https://picsum.photos/400/400?random=4', 'https://picsum.photos/200/200?random=5', 'https://picsum.photos/200/200?random=6']
+              })}
+            />
+            <Marker
+              coordinate={{ latitude: location.latitude - 0.005, longitude: location.longitude - 0.005 }}
+              title="City Coffee"
+              pinColor="orange"
+              onPress={() => setSelectedPlace({
+                id: '2',
+                name: 'City Coffee',
+                address: '456 Cafe St, New York, NY 10021',
+                duration: '5 min',
+                distance: '0.8 km',
+                type: 'Cafe',
+                photos: ['https://picsum.photos/400/400?random=1', 'https://picsum.photos/200/200?random=2', 'https://picsum.photos/200/200?random=3']
+              })}
+            />
+          </>
+        )}
+
         {location && (
           <Marker
             coordinate={location}
@@ -177,16 +265,44 @@ export const HomeScreen: React.FC = () => {
           />
         )}
 
-        {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeWidth={5}
-            strokeColor="#2196F3" 
-          />
+        {/* Route rendering by Segments for risk highlighting */}
+        {routeSegments.length > 0 ? (
+          routeSegments.map((segment, index) => (
+            <Polyline
+              key={`segment-${index}`}
+              coordinates={segment.coordinates}
+              strokeWidth={5}
+              strokeColor={segment.isDangerous ? "#EF4444" : "#2196F3"} 
+            />
+          ))
+        ) : (
+          routeCoordinates.length > 0 && (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeWidth={5}
+              strokeColor="#2196F3" 
+            />
+          )
         )}
+
+        {/* Detected Crime Incidents */}
+        {activeIncidents.map((incident) => (
+          <React.Fragment key={`incident-${incident.id}`}>
+            <Circle
+              center={{ latitude: incident.latitude, longitude: incident.longitude }}
+              radius={200}
+              fillColor="rgba(239, 68, 68, 0.15)"
+              strokeColor="rgba(239, 68, 68, 0.5)"
+              strokeWidth={1}
+            />
+            <IncidentMarker incident={incident} />
+          </React.Fragment>
+        ))}
       </MapView>
 
       <View style={styles.topContainer}>
+        
+
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <TextInput
@@ -262,7 +378,44 @@ export const HomeScreen: React.FC = () => {
           <Text style={styles.sosText}>SOS</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    
+      
+      {!routeParams && (
+          <PlaceDrawer
+            place={selectedPlace}
+            onClose={() => setSelectedPlace(null)}
+            onDirections={(place) => {
+              if (location) {
+                calculateRoute({
+                  latitude: location.latitude + 0.005,
+                  longitude: location.longitude + 0.005
+                }, routeMode);
+              }
+            }}
+          />
+        )}
+        {routeParams && (
+          <RouteDrawer
+            distance={routeParams.distance}
+            duration={routeParams.duration}
+            incidents={activeIncidents}
+            isVisible={!!routeParams}
+            onIncidentPress={(incident) => {
+              if (mapRef.current) {
+                mapRef.current.animateCamera({
+                  center: {
+                    latitude: incident.latitude,
+                    longitude: incident.longitude,
+                  },
+                  zoom: 17,
+                }, { duration: 1000 });
+              }
+            }}
+          />
+        )}
+      </SafeAreaView>
+
+
   );
 }
 
@@ -282,6 +435,11 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     zIndex: 10,
+  },
+  bannerContainer: {
+    marginBottom: 10,
+    marginLeft: -16, // Counteract banner's default margin if needed to align
+    marginRight: -16,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -398,5 +556,12 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  routeCardContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    maxHeight: '50%',
   },
 });

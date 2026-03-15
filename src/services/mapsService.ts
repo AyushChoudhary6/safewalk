@@ -15,6 +15,22 @@ export interface LocationSuggestion {
 
 export type RouteProfile = 'driving-car' | 'cycling-regular' | 'foot-walking';
 
+export interface RouteStep {
+  distance: number;
+  duration: number;
+  instruction: string;
+  way_points: [number, number]; // [start, end] indices in coordinates array
+}
+
+export interface RouteInfo {
+  coordinates: Coordinates[];
+  distance: number; // in kilometers
+  duration: number; // in seconds
+  steps?: RouteStep[];
+  error?: string;
+  trafficLevel?: 'low' | 'moderate' | 'heavy';
+}
+
 /**
  * Fetches location suggestions using OpenRouteService Autocomplete
  * @param query The text to search for
@@ -55,24 +71,24 @@ export const fetchLocationSuggestions = async (
 };
 
 /**
- * Fetches the route from OpenRouteService API
+ * Fetches the route from OpenRouteService API with detailed information
  * @param origin Start coordinates
  * @param destination End coordinates
  * @param profile Transportation mode (driving-car, cycling-regular, foot-walking)
- * @returns Array of coordinates for the polyline, and any error message
+ * @returns Route information including coordinates, distance, duration, and traffic data
  */
 export const fetchRoute = async (
   origin: Coordinates,
   destination: Coordinates,
   profile: RouteProfile = 'driving-car'
-): Promise<{ coordinates: Coordinates[], error?: string }> => {
+): Promise<RouteInfo> => {
   try {
     // Validate profile parameter to avoid undefined values
     const validProfiles: RouteProfile[] = ['driving-car', 'cycling-regular', 'foot-walking'];
     const safeProfile = (validProfiles.includes(profile) ? profile : 'driving-car') as RouteProfile;
     
     if (!safeProfile) {
-      return { coordinates: [], error: `Invalid transportation profile: ${profile}` };
+      return { coordinates: [], distance: 0, duration: 0, error: `Invalid transportation profile: ${profile}` };
     }
 
     const url = `https://api.openrouteservice.org/v2/directions/${safeProfile}?api_key=${OPENROUTE_API_KEY}&start=${origin.longitude},${origin.latitude}&end=${destination.longitude},${destination.latitude}`;
@@ -87,7 +103,7 @@ export const fetchRoute = async (
       const geometryCoordinates = data.features[0].geometry.coordinates;
       
       if (!Array.isArray(geometryCoordinates) || geometryCoordinates.length === 0) {
-        return { coordinates: [], error: 'No coordinates in route response' };
+        return { coordinates: [], distance: 0, duration: 0, error: 'No coordinates in route response' };
       }
       
       console.log(`Route fetched successfully with ${geometryCoordinates.length} points`);
@@ -98,7 +114,61 @@ export const fetchRoute = async (
         longitude: coord[0],
       }));
       
-      return { coordinates };
+      // Extract route properties
+      const properties = data.features[0].properties;
+      const distance = properties?.summary?.distance ? properties.summary.distance / 1000 : 0; // Convert to km
+      let duration = properties?.summary?.duration ? properties.summary.duration : 0; // in seconds
+
+      // Adjust duration based on real-world average speed (e.g. Google Maps estimates ~25km/h in cities with traffic)
+      // OpenRouteService often assumes free-flow speed or higher speed limits where not accounting for intersections/traffic.
+      if (safeProfile === 'driving-car') {
+         // calculate an OpenRouteService implied speed (km/s)
+         const impliedSpeedMps = distance / (duration || 1); // km / seconds
+         
+         // In reality, average city driving speed is around 20-30km/h
+         const averageSpeedsKmph = {
+            'driving-car': 23, 
+            'cycling-regular': 12,
+            'foot-walking': 4.5
+         };
+
+         // Calculate a realistic time based on distance over conservative real-world average speeds.
+         // Ensure it doesn't drop below the absolute theoretical minimum computed by OpenRouteService!
+         let adjustedSpeedKmph = 25; // Good realistic driving speed in moderate traffic
+         
+         // Apply heuristic: longer journeys might have more highways, so adjust speed somewhat
+         if (distance > 30) adjustedSpeedKmph = 35;
+         if (distance > 100) adjustedSpeedKmph = 60;
+         
+         const realisticMinimumSeconds = (distance / adjustedSpeedKmph) * 3600;
+         duration = Math.max(duration, realisticMinimumSeconds);
+      } else if (safeProfile === 'cycling-regular') {
+         const realisticMinimumSeconds = (distance / 12) * 3600;
+         duration = Math.max(duration, realisticMinimumSeconds);
+      } else if (safeProfile === 'foot-walking') {
+         const realisticMinimumSeconds = (distance / 4.5) * 3600;
+         duration = Math.max(duration, realisticMinimumSeconds);
+      }
+      
+      const steps = properties?.segments?.[0]?.steps?.map((step: any) => ({
+        distance: step.distance,
+        duration: step.duration,
+        instruction: step.instruction,
+        way_points: step.way_points,
+      })) || [];
+
+      // Estimate traffic level based on duration vs expected
+      const expectedMinutesPerKm = safeProfile === 'driving-car' ? 2 : safeProfile === 'cycling-regular' ? 6 : 12;
+      const expectedDuration = distance * expectedMinutesPerKm * 60; // in seconds
+      const trafficRatio = expectedDuration > 0 ? duration / expectedDuration : 1;
+      
+      let trafficLevel: 'low' | 'moderate' | 'heavy' = 'low';
+      if (trafficRatio > 2) trafficLevel = 'heavy';
+      else if (trafficRatio > 1.3) trafficLevel = 'moderate';
+      
+      console.log(`Route: ${distance.toFixed(2)}km, ${Math.ceil(duration / 60)}min, Traffic: ${trafficLevel}`);
+      
+      return { coordinates, distance, duration, steps, trafficLevel };
     } else {
       // Robust error handling to avoid 'undefined' logs
       let errorMsg = 'Unknown OpenRouteService error';
@@ -109,10 +179,10 @@ export const fetchRoute = async (
       }
       
       console.warn('OpenRouteService API Error:', errorMsg);
-      return { coordinates: [], error: errorMsg };
+      return { coordinates: [], distance: 0, duration: 0, error: errorMsg };
     }
   } catch (error: any) {
     console.error('Error fetching route:', error);
-    return { coordinates: [], error: error?.message || 'Network request failed' };
+    return { coordinates: [], distance: 0, duration: 0, error: error?.message || 'Network request failed' };
   }
 };

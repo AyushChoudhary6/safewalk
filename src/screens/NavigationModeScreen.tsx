@@ -1,28 +1,27 @@
 /**
  * NavigationModeScreen
- * Active navigation display while walking
+ * Active navigation display
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import {
-    AlertModal,
-    SafeWalkMapView
+  DistanceCard,
+  InstructionCard,
 } from '../components';
-import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
-} from '../theme';
+import { startNavigationTracking } from '../services/locationService';
+import { calculateDistance } from '../utils/routeUtils';
+import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
+import * as Location from 'expo-location';
+import { fetchRoute } from '../services/mapsService';
 
 interface NavigationModeScreenProps {
   route?: any;
@@ -31,175 +30,280 @@ interface NavigationModeScreenProps {
   onCancel?: () => void;
 }
 
+// Navigation States
+type NavState = 'IDLE' | 'ROUTE_PREVIEW' | 'NAVIGATING' | 'ARRIVED';
+
 export const NavigationModeScreen: React.FC<NavigationModeScreenProps> = ({
   route,
   onComplete,
   onEmergency,
   onCancel,
 }) => {
-  const [progress, setProgress] = useState(0);
-  const [showAlert, setShowAlert] = useState(false);
+  const mapRef = useRef<MapView>(null);
+  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
 
+  const [navState, setNavState] = useState<NavState>('NAVIGATING');
+  const [currentLocation, setCurrentLocation] = useState<Location.LocationObjectCoords | null>(
+    route?.origin || null
+  );
+  
+  // Route Data
+  const [routeCoordinates, setRouteCoordinates] = useState<{latitude: number; longitude: number}[]>(
+    route?.coordinates || []
+  );
+  const [routeSteps, setRouteSteps] = useState<any[]>(route?.steps || []);
+  
+  // Progress Data
+  const [distanceRemaining, setDistanceRemaining] = useState<number>(route?.distance || 0);
+  const [timeRemaining, setTimeRemaining] = useState<number>(route?.duration ? route.duration / 60 : 0);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [heading, setHeading] = useState(0);
+  
+  // Recalculating flag
+  const [isRerouting, setIsRerouting] = useState(false);
+
+  const [closestIndex, setClosestIndex] = useState(0);
+
+  // Setup location tracking
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          onComplete?.();
-          return 100;
+    let mounted = true;
+    
+    const startTracking = async () => {
+      const sub = await startNavigationTracking((loc) => {
+        if (!mounted) return;
+        
+        const coords = loc.coords;
+        setCurrentLocation(coords);
+        if (coords.heading !== null && coords.heading >= 0) {
+          setHeading(coords.heading);
         }
-        return prev + Math.random() * 15;
+        
+        handleLocationUpdate(coords);
       });
-    }, 2000);
+      if (mounted) {
+        locationSubRef.current = sub;
+      } else {
+        sub?.remove();
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [onComplete]);
+    startTracking();
 
-  const mockRegion = {
-    latitude: 37.7749,
-    longitude: -122.4194,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
+    return () => {
+      mounted = false;
+      if (locationSubRef.current) {
+        locationSubRef.current.remove();
+      }
+    };
+  }, [routeCoordinates]); // Re-bind if route changes
+
+  // Update map camera when location or heading changes
+  useEffect(() => {
+    if (navState === 'NAVIGATING' && currentLocation && mapRef.current) {
+      mapRef.current.animateCamera({
+        center: currentLocation,
+        zoom: 18,
+        pitch: 45,
+        heading: heading,
+      }, { duration: 1000 });
+    }
+  }, [currentLocation, heading, navState]);
+
+  const handleLocationUpdate = async (coords: Location.LocationObjectCoords) => {
+    if (routeCoordinates.length === 0 || isRerouting) return;
+
+    // 1. Find the closest point on the route polyline
+    let minDistance = Infinity;
+    let foundIndex = 0;
+
+    for (let i = 0; i < routeCoordinates.length; i++) {
+      const dist = calculateDistance(coords, routeCoordinates[i]);
+      if (dist < minDistance) {
+        minDistance = dist;
+        foundIndex = i;
+      }
+    }
+    setClosestIndex(foundIndex);
+
+    // 2. Check if we need to reroute (> 50 meters away)
+    if (minDistance > 0.05) { 
+      // Reroute
+      handleReroute(coords);
+      return;
+    }
+
+    // 3. Update distance & time remaining
+    // Calculate distance from closest index to end
+    let remainingDist = 0;
+    for (let i = foundIndex; i < routeCoordinates.length - 1; i++) {
+        remainingDist += calculateDistance(routeCoordinates[i], routeCoordinates[i+1]);
+    }
+    setDistanceRemaining(remainingDist);
+    
+    // Estimate remaining time based on original avg speed or default 50km/h for car
+    const speedKmH = route?.mode === 'foot-walking' ? 5 : route?.mode === 'cycling-regular' ? 15 : 40;
+    setTimeRemaining((remainingDist / speedKmH) * 60);
+
+    // 4. Update Current Step
+    if (routeSteps.length > 0 && currentStepIndex < routeSteps.length) {
+      const step = routeSteps[currentStepIndex];
+      // step.way_points is [start_idx, end_idx]
+      const stepEndIndex = step.way_points[1];
+      
+      if (foundIndex >= stepEndIndex) {
+        // Move to next step
+        setCurrentStepIndex(prev => prev + 1);
+      }
+    }
+
+    // 5. Arrived logic
+    if (remainingDist < 0.02) { // less than 20 meters
+      setNavState('ARRIVED');
+      Alert.alert('Arrived', 'You have reached your destination!', [
+        { text: 'OK', onPress: () => onComplete && onComplete() }
+      ]);
+    }
   };
 
+  const handleReroute = async (currentLoc: Location.LocationObjectCoords) => {
+    if (!route?.destination || isRerouting) return;
+    setIsRerouting(true);
+    
+    try {
+      const mode = route.mode || 'driving-car';
+      const newRoute = await fetchRoute(currentLoc, route.destination, mode);
+      
+      if (!newRoute.error && newRoute.coordinates.length > 0) {
+        setRouteCoordinates(newRoute.coordinates);
+        setRouteSteps(newRoute.steps || []);
+        setCurrentStepIndex(0);
+        setDistanceRemaining(newRoute.distance);
+        setTimeRemaining(newRoute.duration / 60);
+      }
+    } catch (e) {
+      console.warn('Rerouting failed', e);
+    } finally {
+      setIsRerouting(false);
+    }
+  };
+
+  const recenterMap = () => {
+    if (currentLocation && mapRef.current) {
+      mapRef.current.animateCamera({
+        center: currentLocation,
+        zoom: 18,
+        pitch: 45,
+        heading: heading,
+      }, { duration: 1000 });
+    }
+  };
+
+  const currentInstruction = routeSteps.length > currentStepIndex 
+    ? routeSteps[currentStepIndex]
+    : { instruction: 'Continue on route', distance: distanceRemaining * 1000 };
+
+  const activeRouteCoords = useMemo(() => {
+    return routeCoordinates.slice(closestIndex);
+  }, [routeCoordinates, closestIndex]);
+
+  const pastRouteCoords = useMemo(() => {
+    return routeCoordinates.slice(0, closestIndex + 1);
+  }, [routeCoordinates, closestIndex]);
+
   return (
-    <>
-      <View style={styles.container}>
-        {/* Map */}
-        <SafeWalkMapView initialRegion={mockRegion} />
+    <View style={styles.container}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        showsUserLocation={false} 
+        showsMyLocationButton={false}
+        showsCompass={false}
+        initialCamera={{
+          center: currentLocation || route?.origin || { latitude: 37.7749, longitude: -122.4194 },
+          zoom: 18,
+          pitch: 45,
+          heading: heading,
+          altitude: 0,
+        }}
+      >
+        {/* Completed Route (Faded) */}
+        {pastRouteCoords.length > 1 && (
+          <Polyline
+            coordinates={pastRouteCoords}
+            strokeWidth={6}
+            strokeColor="#B0B0B0"
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
 
-        {/* Top Navigation Bar */}
-        <View style={[styles.topBar, SHADOWS.md]}>
-          <TouchableOpacity onPress={onCancel} style={styles.backButton}>
-            <MaterialCommunityIcons
-              name="chevron-left"
-              size={28}
-              color={COLORS.text.primary}
-            />
-          </TouchableOpacity>
+        {/* Active Route */}
+        {activeRouteCoords.length > 1 && (
+          <Polyline
+            coordinates={activeRouteCoords}
+            strokeWidth={6}
+            strokeColor="#4A90E2"
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
 
-          <View style={styles.navigationInfo}>
-            <Text style={styles.distanceRemaining}>
-              {(route?.distance || 1.4).toFixed(1)} km remaining
-            </Text>
-            <Text style={styles.eta}>ETA: {route?.duration || 12} min</Text>
-          </View>
-
-          <TouchableOpacity style={styles.helpButton}>
-            <MaterialCommunityIcons
-              name="help-circle-outline"
-              size={24}
-              color={COLORS.text.primary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Progress Indicator */}
-        <View style={[styles.progressContainer, SHADOWS.md]}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Route Progress</Text>
-            <Text style={styles.progressPercent}>{Math.floor(progress)}%</Text>
-          </View>
-          <View style={styles.progressBarBackground}>
-            <View
-              style={[
-                styles.progressBar,
-                { width: `${progress}%` },
-              ]}
-            />
-          </View>
-        </View>
-
-        {/* Safety Alert Box */}
-        <View style={[styles.alertBox, SHADOWS.md]}>
-          <View style={styles.alertIcon}>
-            <MaterialCommunityIcons
-              name="alert"
-              size={20}
-              color={COLORS.warning}
-            />
-          </View>
-          <View style={styles.alertContent}>
-            <Text style={styles.alertTitle}>Low Lighting Ahead</Text>
-            <Text style={styles.alertMessage}>Stay alert in this area</Text>
-          </View>
-          <TouchableOpacity>
-            <MaterialCommunityIcons
-              name="close"
-              size={20}
-              color={COLORS.text.secondary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom Controls */}
-        <View style={[styles.bottomControls, SHADOWS.lg]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.controlsScroll}
+        {/* User Marker (Rotated by heading) */}
+        {currentLocation && (
+          <Marker
+            coordinate={currentLocation}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={true}
+            rotation={heading}
           >
-            <TouchableOpacity style={[styles.controlButton, SHADOWS.sm]}>
-              <MaterialCommunityIcons
-                name="phone-outline"
-                size={20}
-                color={COLORS.text.primary}
-              />
-              <Text style={styles.controlLabel}>Call</Text>
-            </TouchableOpacity>
+            <View style={styles.userMarkerIndicator}>
+              <MaterialCommunityIcons name="navigation" size={32} color="#4A90E2" />
+            </View>
+          </Marker>
+        )}
 
-            <TouchableOpacity style={[styles.controlButton, SHADOWS.sm]}>
-              <MaterialCommunityIcons
-                name="share-variant"
-                size={20}
-                color={COLORS.text.primary}
-              />
-              <Text style={styles.controlLabel}>Share</Text>
-            </TouchableOpacity>
+        {/* Destination Marker */}
+        {route?.destination && (
+          <Marker coordinate={route.destination}>
+            <View style={styles.destMarker}>
+               <MaterialCommunityIcons name="map-marker" size={32} color="#E24A4A" />
+            </View>
+          </Marker>
+        )}
+      </MapView>
 
-            <TouchableOpacity style={[styles.controlButton, SHADOWS.sm]}>
-              <MaterialCommunityIcons
-                name="map-marker-check"
-                size={20}
-                color={COLORS.text.primary}
-              />
-              <Text style={styles.controlLabel}>Check-in</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.controlButton, styles.emergencyControl]}
-              onPress={() => setShowAlert(true)}
-            >
-              <MaterialCommunityIcons
-                name="alert-circle"
-                size={20}
-                color={COLORS.card}
-              />
-              <Text style={[styles.controlLabel, styles.emergencyLabel]}>
-                Emergency
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
+      {/* Top Instruction Card */}
+      {isRerouting ? (
+        <View style={styles.reroutingCard}>
+          <Text style={styles.reroutingText}>Rerouting...</Text>
         </View>
+      ) : (
+        <InstructionCard
+          instruction={currentInstruction.instruction}
+          distance={currentInstruction.distance}
+        />
+      )}
+
+      {/* Floating Action Buttons */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity style={styles.fab} onPress={recenterMap}>
+          <MaterialCommunityIcons name="crosshairs-gps" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={[styles.fab, styles.sosFab]} onPress={onEmergency}>
+          <Text style={styles.sosText}>SOS</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Emergency Confirmation Modal */}
-      <AlertModal
-        visible={showAlert}
-        type="danger"
-        title="Are you safe?"
-        message="This will alert your emergency contacts and share your live location."
-        actionLabel="Send Alert"
-        secondaryActionLabel="Cancel"
-        onAction={() => {
-          setShowAlert(false);
-          onEmergency?.();
-        }}
-        onSecondaryAction={() => setShowAlert(false)}
-        showCountdown={true}
-        countdownSeconds={10}
-      />
-    </>
+      {/* Bottom Distance Card */}
+      <View style={styles.bottomCardContainer}>
+        <DistanceCard
+          distanceRemaining={distanceRemaining}
+          timeRemaining={timeRemaining}
+          onEndNavigation={() => onCancel && onCancel()}
+        />
+      </View>
+    </View>
   );
 };
 
@@ -208,141 +312,64 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.base,
-    zIndex: 10,
-    gap: SPACING.base,
+  map: {
+    ...StyleSheet.absoluteFillObject,
   },
-  backButton: {
-    padding: SPACING.sm,
-  },
-  navigationInfo: {
-    flex: 1,
-  },
-  distanceRemaining: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    fontWeight: '600',
-    color: COLORS.text.primary,
-  },
-  eta: {
-    fontSize: TYPOGRAPHY.sizes.xs,
-    color: COLORS.text.secondary,
-    marginTop: SPACING.xs,
-  },
-  helpButton: {
-    padding: SPACING.sm,
-  },
-  progressContainer: {
-    position: 'absolute',
-    top: 80,
-    left: SPACING.lg,
-    right: SPACING.lg,
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.base,
-    zIndex: 10,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.sm,
-  },
-  progressLabel: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    fontWeight: '600',
-    color: COLORS.text.primary,
-  },
-  progressPercent: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  progressBarBackground: {
-    height: 6,
-    backgroundColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.full,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: COLORS.safe,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  alertBox: {
-    position: 'absolute',
-    top: 160,
-    left: SPACING.lg,
-    right: SPACING.lg,
-    backgroundColor: `${COLORS.warning}15`,
-    borderRadius: BORDER_RADIUS.md,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.warning,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.md,
-    zIndex: 10,
-    gap: SPACING.md,
-  },
-  alertIcon: {
+  userMarkerIndicator: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: `${COLORS.warning}30`,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  alertContent: {
-    flex: 1,
+  destMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  alertTitle: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    fontWeight: '600',
-    color: COLORS.text.primary,
+  fabContainer: {
+    position: 'absolute',
+    right: 16,
+    bottom: 140, // Above DistanceCard
+    gap: 16,
   },
-  alertMessage: {
-    fontSize: TYPOGRAPHY.sizes.xs,
-    color: COLORS.text.secondary,
-    marginTop: SPACING.xs,
+  fab: {
+    backgroundColor: COLORS.card,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  bottomControls: {
+  sosFab: {
+    backgroundColor: COLORS.danger,
+  },
+  sosText: {
+    color: COLORS.card,
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  bottomCardContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.card,
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.md,
-    zIndex: 10,
   },
-  controlsScroll: {
-    flexDirection: 'row',
-  },
-  controlButton: {
+  reroutingCard: {
+    backgroundColor: COLORS.warning,
+    borderRadius: 16,
+    padding: SPACING.md,
+    marginHorizontal: SPACING.base,
+    marginTop: 60,
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    marginRight: SPACING.md,
-    gap: SPACING.sm,
+    ...SHADOWS.lg,
   },
-  emergencyControl: {
-    backgroundColor: COLORS.danger,
-  },
-  controlLabel: {
-    fontSize: TYPOGRAPHY.sizes.xs,
-    fontWeight: '600',
-    color: COLORS.text.primary,
-  },
-  emergencyLabel: {
-    color: COLORS.card,
+  reroutingText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: TYPOGRAPHY.sizes.lg,
   },
 });

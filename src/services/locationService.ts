@@ -46,3 +46,24 @@ export const startLocationUpdates = async (
     return null;
   }
 };
+
+export const startNavigationTracking = async (
+  callback: (location: Location.LocationObject) => void
+): Promise<Location.LocationSubscription | null> => {
+  try {
+    const subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 1000,
+        distanceInterval: 1,
+      },
+      (location) => {
+        callback(location);
+      }
+    );
+    return subscription;
+  } catch (error) {
+    console.error('Error starting navigation tracking:', error);
+    return null;
+  }
+};

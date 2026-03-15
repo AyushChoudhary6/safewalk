@@ -43,7 +43,7 @@ export const segmentRoute = (
 /**
  * Calculate distance between two points
  */
-const calculateDistance = (
+export const calculateDistance = (
   point1: { latitude: number; longitude: number },
   point2: { latitude: number; longitude: number }
 ): number => {

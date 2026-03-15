@@ -50,17 +50,17 @@ export const RootNavigator: React.FC = () => {
             presentation: 'fullScreenModal',
           }}
         >
-              {({ route }) => (
+              {({ route, navigation }) => (
                 <NavigationModeScreen
                   route={route.params?.route}
                   onComplete={() => {
-                    /* Handle walk complete */
+                    navigation.goBack();
                   }}
                   onEmergency={() => {
                     /* Handle emergency */
                   }}
                   onCancel={() => {
-                    /* Handle cancel */
+                    navigation.goBack();
                   }}
                 />
               )}
