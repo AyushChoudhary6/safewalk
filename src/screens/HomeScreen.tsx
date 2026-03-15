@@ -89,14 +89,24 @@ export const HomeScreen: React.FC = () => {
 
   const handleTextChange = (text: string) => {
     setSearchQuery(text);
+    if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current);
+        searchTimeout.current = null;
+    }
+
     if (text.length > 2) {
-      if (searchTimeout.current) clearTimeout(searchTimeout.current);
       setSearching(true);
       searchTimeout.current = setTimeout(async () => {
-        const results = await fetchLocationSuggestions(text, location || undefined);
-        setSuggestions(results);
-        setShowSuggestions(true);
-        setSearching(false);
+        try {
+            const results = await fetchLocationSuggestions(text, location || undefined);
+            setSuggestions(results);
+            setShowSuggestions(true);
+            setSearching(false);
+        } catch (error) {
+            console.log('Error fetching suggestions', error);
+            setSuggestions([]);
+            setSearching(false);
+        }
       }, 500);
     } else {
       setSuggestions([]);
@@ -120,57 +130,62 @@ export const HomeScreen: React.FC = () => {
     setRouteRiskInfo(null);
     setRouteParams(null);
     
-    const routeData = await fetchRoute(location, destLoc, safeMode);
-    
-    if (routeData.error || routeData.coordinates.length === 0) {
-        const errorMsg = routeData.error || 'No route found. Please check your origin and destination.';
-        Alert.alert('Route Error', errorMsg);
-    } else {
-        setRouteCoordinates(routeData.coordinates);
+    try {
+      const routeData = await fetchRoute(location, destLoc, safeMode);
+      
+      if (routeData.error || routeData.coordinates.length === 0) {
+          const errorMsg = routeData.error || 'No route found. Please check your origin and destination.';
+          Alert.alert('Route Error', errorMsg);
+      } else {
+          setRouteCoordinates(routeData.coordinates);
 
-        // -------- LOG 10 SAMPLE COORDINATES ----------
-        const n = routeData.coordinates.length;
-        const sampledPoints = [];
-        if (n <= 10) {
-          sampledPoints.push(...routeData.coordinates);
-        } else {
-          for (let i = 0; i < 10; i++) {
-            const index = Math.floor((i * (n - 1)) / 9);
-            sampledPoints.push(routeData.coordinates[index]);
+          // -------- LOG 10 SAMPLE COORDINATES ----------
+          const n = routeData.coordinates.length;
+          const sampledPoints = [];
+          if (n <= 10) {
+            sampledPoints.push(...routeData.coordinates);
+          } else {
+            for (let i = 0; i < 10; i++) {
+              const index = Math.floor((i * (n - 1)) / 9);
+              sampledPoints.push(routeData.coordinates[index]);
+            }
           }
-        }
-        console.log(`\n--- 10 Coordinate Pairs (Lat/Lng) between Origin and Destination ---`);
-        const pairsArray = sampledPoints.map(pt => [pt.latitude, pt.longitude]);
-        console.log(JSON.stringify(pairsArray));
-        console.log(`-------------------------------------------------\n`);
-        // ---------------------------------------------
+          console.log(`\n--- 10 Coordinate Pairs (Lat/Lng) between Origin and Destination ---`);
+          const pairsArray = sampledPoints.map(pt => [pt.latitude, pt.longitude]);
+          console.log(JSON.stringify(pairsArray));
+          console.log(`-------------------------------------------------\n`);
+          // ---------------------------------------------
 
-        // Detect incidents along the new route
-        const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
-        const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
-        
-        setActiveIncidents(riskInfo.incidentsOnRoute);
-        setRouteSegments(riskInfo.routeSegments);
-        setRouteRiskInfo(riskInfo);
+          // Detect incidents along the new route
+          const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
+          const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
+          
+          setActiveIncidents(riskInfo.incidentsOnRoute);
+          setRouteSegments(riskInfo.routeSegments);
+          setRouteRiskInfo(riskInfo);
 
-        setRouteParams({
-            origin: location,
-            destination: destLoc,
-            mode: safeMode,
-            coordinates: routeData.coordinates,
-            distance: routeData.distance,
-            duration: routeData.duration,
-            steps: routeData.steps,
+          setRouteParams({
+              origin: location,
+              destination: destLoc,
+              mode: safeMode,
+              coordinates: routeData.coordinates,
+              distance: routeData.distance,
+              duration: routeData.duration,
+              steps: routeData.steps,
+          });
+      }
+    } catch (error) {
+      console.error('Route calculation crashed: ', error);
+      Alert.alert('Error', 'Failed to calculate route and find details.');
+    } finally {
+      setSearching(false);
+      
+      if (mapRef.current) {
+        mapRef.current.fitToCoordinates([location, destLoc], {
+          edgePadding: { top: 150, right: 50, bottom: 100, left: 50 },
+          animated: true,
         });
-    }
-    
-    setSearching(false);
-    
-    if (mapRef.current) {
-      mapRef.current.fitToCoordinates([location, destLoc], {
-        edgePadding: { top: 150, right: 50, bottom: 100, left: 50 },
-        animated: true,
-      });
+      }
     }
   };
 

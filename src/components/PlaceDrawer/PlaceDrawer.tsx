@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ActionButtons } from './ActionButtons';
 import { PhotoGallery } from './PhotoGallery';
 
@@ -28,24 +28,32 @@ export const PlaceDrawer: React.FC<PlaceDrawerProps> = ({
   onDirections,
   onStart,
 }) => {
+  const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['25%', '50%', '90%'], []);
   const [activeTab, setActiveTab] = useState('Overview');
   const tabs = ['Overview', 'Photos', 'About'];
 
-  if (!place) {
-    return null;
-  }
+  useEffect(() => {
+    if (place) {
+      bottomSheetRef.current?.snapToIndex(1);
+    } else {
+      bottomSheetRef.current?.close();
+    }
+  }, [place]);
 
   return (
     <BottomSheet
-      index={1}
+      ref={bottomSheetRef}
+      index={-1}
       snapPoints={snapPoints}
       backgroundStyle={styles.bottomSheetBackground}
       handleIndicatorStyle={styles.handleIndicator}
       enablePanDownToClose
       onClose={onClose}
     >
-      <View style={styles.header}>
+      {place && (
+        <View style={{ flex: 1 }}>
+          <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.titleName} numberOfLines={2}>
             {place.name}
@@ -64,7 +72,7 @@ export const PlaceDrawer: React.FC<PlaceDrawerProps> = ({
         </View>
         <View style={styles.subtitleRow}>
           <MaterialCommunityIcons name="car" size={16} color="#777" />
-          <Text style={styles.subtitleText}>{place.duration || '6 min'} • {place.distance || '2 km'}</Text>
+          <Text style={styles.subtitleText}>{place.duration || '6 min'} ï¿½ {place.distance || '2 km'}</Text>
         </View>
       </View>
 
@@ -123,6 +131,8 @@ export const PlaceDrawer: React.FC<PlaceDrawerProps> = ({
         )}
         <View style={{ height: 40 }} />
       </BottomSheetScrollView>
+      </View>
+      )}
     </BottomSheet>
   );
 };

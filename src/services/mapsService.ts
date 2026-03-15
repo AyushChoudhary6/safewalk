@@ -13,6 +13,25 @@ export interface LocationSuggestion {
   coordinates: Coordinates;
 }
 
+/**
+ * A handy fetch wrapper that forces a timeout to avoid hangs
+ */
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, fallbackTimeoutMs = 8000) => {
+  const timeoutPromise = new Promise<Response>((_, reject) => {
+    setTimeout(() => reject(new Error('Request Timeout')), fallbackTimeoutMs);
+  });
+  
+  try {
+    const response = await Promise.race([
+      fetch(url, options),
+      timeoutPromise
+    ]);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export type RouteProfile = 'driving-car' | 'cycling-regular' | 'foot-walking';
 
 export interface RouteStep {
@@ -50,16 +69,25 @@ export const fetchLocationSuggestions = async (
       url += `&focus.point.lon=${focusLocation.longitude}&focus.point.lat=${focusLocation.latitude}`;
     }
 
-    const response = await fetch(url);
-    const data = await response.json();
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Location suggestions timeout')), 5000);
+    });
 
-    if (data.features && data.features.length > 0) {
+    const fetchPromise = (async () => {
+      const response = await fetch(url);
+      const data = await response.json();
+      return data;
+    })();
+
+    const data = await Promise.race([fetchPromise, timeoutPromise]);
+    
+    if (data && data.features) {
       return data.features.map((f: any) => ({
-        name: f.properties.name,
-        label: f.properties.label || f.properties.name,
+        name: f.properties?.name || 'Unknown',
+        label: f.properties?.label || f.properties?.name || 'Unknown Location',
         coordinates: {
-          latitude: f.geometry.coordinates[1],
-          longitude: f.geometry.coordinates[0],
+          latitude: f.geometry?.coordinates?.[1] || 0,
+          longitude: f.geometry?.coordinates?.[0] || 0,
         }
       }));
     }
@@ -93,7 +121,7 @@ export const fetchRoute = async (
 
     const url = `https://api.openrouteservice.org/v2/directions/${safeProfile}?api_key=${OPENROUTE_API_KEY}&start=${origin.longitude},${origin.latitude}&end=${destination.longitude},${destination.latitude}`;
     
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, {}, 10000);
     const data = await response.json();
 
     console.log('Route API Response:', data);
