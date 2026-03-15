@@ -11,6 +11,7 @@ import {
     NavigationModeScreen,
     PremiumScreen,
     ReportIncidentScreen,
+    EmergencyContactsScreen,
 } from '../screens';
 import { TabNavigator } from './TabNavigator';
 
@@ -20,6 +21,7 @@ export type RootStackParamList = {
   NavigationMode: { route?: any };
   ReportIncident: undefined;
   Premium: undefined;
+  EmergencyContacts: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -102,6 +104,16 @@ export const RootNavigator: React.FC = () => {
                   }}
                 />
               )}
+            </Stack.Screen>
+
+            <Stack.Screen 
+              name="EmergencyContacts" 
+              options={{
+                animationEnabled: true,
+                presentation: 'card',
+              }}
+            >
+              {() => <EmergencyContactsScreen />}
             </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>

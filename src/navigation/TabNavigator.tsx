@@ -5,12 +5,10 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React from 'react';
 import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-    ActivityScreen,
-    EscortScreen,
     HomeScreen,
     ProfileScreen,
     ReportIncidentScreen,
@@ -20,44 +18,25 @@ import { COLORS, SPACING, TYPOGRAPHY } from '../theme';
 export type TabParamList = {
   HomeTab: undefined;
   ReportTab: undefined;
-  EscortTab: undefined;
-  ActivityTab: undefined;
-  ProfileTab: undefined;
-};
+    ProfileTab: undefined;
+  };
+  
+  const Tab = createBottomTabNavigator<TabParamList>();
 
-const Tab = createBottomTabNavigator<TabParamList>();
-
-const tabScreens = [
-  {
-    name: 'HomeTab',
-    component: HomeScreen,
-    label: 'Home',
-    icon: 'home-outline',
-    activeIcon: 'home',
-  },
-  {
-    name: 'ReportTab',
-    component: ReportIncidentScreen,
-    label: 'Report',
-    icon: 'flag-outline',
-    activeIcon: 'flag',
-  },
-  {
-    name: 'EscortTab',
-    component: EscortScreen,
-    label: 'Escort',
-    icon: 'shield-outline',
-    activeIcon: 'shield',
-  },
-  {
-    name: 'ActivityTab',
-    component: ActivityScreen,
-    label: 'Activity',
-    icon: 'history',
-    activeIcon: 'history',
-  },
-  {
-    name: 'ProfileTab',
+  const tabScreens = [
+    {
+      name: 'HomeTab',
+      component: HomeScreen,
+      label: 'Home',
+      icon: 'home-outline',
+      activeIcon: 'home',
+    },
+    {
+      name: 'ReportTab',
+      component: ReportIncidentScreen,
+      label: 'Report',
+      icon: 'flag-outline',
+      activeIcon: 'flag',
     component: ProfileScreen,
     label: 'Profile',
     icon: 'account-outline',

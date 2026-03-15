@@ -4,6 +4,8 @@
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
     ScrollView,
@@ -14,6 +16,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { RootStackParamList } from '../navigation/RootNavigator';
+import { EscortSection } from '../components/EscortSection';
 import {
     BORDER_RADIUS,
     COLORS,
@@ -31,6 +35,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onLogout,
   onPremium,
 }) => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [notifications, setNotifications] = useState(true);
   const [locationSharing, setLocationSharing] = useState(true);
   const [emergencyAlerts, setEmergencyAlerts] = useState(true);
@@ -93,7 +98,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <Text style={styles.sectionTitle}>Safety & Privacy</Text>
 
           {/* Emergency Contacts */}
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={() => navigation.navigate('EmergencyContacts')}
+          >
             <View style={styles.settingIcon}>
               <MaterialCommunityIcons
                 name="phone"
@@ -105,28 +113,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <Text style={styles.settingTitle}>Emergency Contacts</Text>
               <Text style={styles.settingDescription}>
                 2 contacts added
-              </Text>
-            </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={COLORS.text.tertiary}
-            />
-          </TouchableOpacity>
-
-          {/* Trusted Contacts */}
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <MaterialCommunityIcons
-                name="heart"
-                size={20}
-                color={COLORS.danger}
-              />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Trusted Contacts</Text>
-              <Text style={styles.settingDescription}>
-                5 people in your circle
               </Text>
             </View>
             <MaterialCommunityIcons

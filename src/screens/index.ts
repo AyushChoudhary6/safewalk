@@ -4,7 +4,7 @@
  */
 
 export { ActivityScreen } from './ActivityScreen';
-export { EscortScreen } from './EscortScreen';
+export { EmergencyContactsScreen } from './EmergencyContactsScreen';
 export { HomeScreen } from './HomeScreen';
 export { LoginScreen } from './LoginScreen';
 export { NavigationModeScreen } from './NavigationModeScreen';

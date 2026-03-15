@@ -18,3 +18,4 @@ export { RoutePolylineLabel } from './RoutePolylineLabel';
 export * from './LocationDetailSheet';
 
 export * from './PlaceDrawer';
+export { EscortSection } from './EscortSection';

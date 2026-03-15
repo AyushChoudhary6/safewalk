@@ -99,6 +99,35 @@ export const fetchLocationSuggestions = async (
 };
 
 /**
+ * Fetches the human-readable address for a given coordinate using OpenRouteService Reverse Geocoding
+ * @param coordinates The coordinates to reverse geocode
+ */
+export const fetchAddressFromCoordinates = async (coordinates: Coordinates): Promise<string> => {
+  try {
+    const url = `https://api.openrouteservice.org/geocode/reverse?api_key=${OPENROUTE_API_KEY}&point.lon=${coordinates.longitude}&point.lat=${coordinates.latitude}`;
+    
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Reverse geocode timeout')), 5000);
+    });
+
+    const fetchPromise = (async () => {
+      const response = await fetch(url);
+      return await response.json();
+    })();
+
+    const data = await Promise.race([fetchPromise, timeoutPromise]);
+    
+    if (data && data.features && data.features.length > 0) {
+      return data.features[0].properties?.label || data.features[0].properties?.name || 'Unknown Location';
+    }
+    return 'Unknown Location';
+  } catch (error) {
+    console.error('Error reverse geocoding:', error);
+    return 'Location address not found';
+  }
+};
+
+/**
  * Fetches the route from OpenRouteService API with detailed information
  * @param origin Start coordinates
  * @param destination End coordinates

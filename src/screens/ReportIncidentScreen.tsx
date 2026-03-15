@@ -16,7 +16,10 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PrimaryButton, SafeWalkMapView } from '../components';
+import MapView, { Marker } from 'react-native-maps';
+import { getCurrentLocation } from '../services/locationService';
+import { fetchAddressFromCoordinates } from '../services/mapsService';
+import { PrimaryButton } from '../components';
 import {
     BORDER_RADIUS,
     COLORS,
@@ -45,12 +48,31 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [location, setLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [locationAddress, setLocationAddress] = useState<string>('Locating...');
 
-  const mockRegion = {
-    latitude: 37.7749,
-    longitude: -122.4194,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
+  React.useEffect(() => {
+    const fetchLoc = async () => {
+      const loc = await getCurrentLocation();
+      if (loc) setLocation({ latitude: loc.latitude, longitude: loc.longitude });
+    };
+    fetchLoc();
+  }, []);
+
+  React.useEffect(() => {
+    if (location) {
+      setLocationAddress('Fetching address...');
+      fetchAddressFromCoordinates(location)
+        .then(addr => setLocationAddress(addr))
+        .catch(() => setLocationAddress(`${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`));
+    }
+  }, [location]);
+
+  const defaultRegion = {
+    latitude: location?.latitude || 37.7749,
+    longitude: location?.longitude || -122.4194,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
   };
 
   const handleSubmit = async () => {
@@ -64,7 +86,7 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
       type: selectedType,
       description,
       timestamp: new Date().toISOString(),
-      location: mockRegion,
+      location: location || defaultRegion,
     });
   };
 
@@ -75,9 +97,21 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
         style={{ flex: 1 }}
       >
         <View style={styles.container}>
-          {/* Mini Map */}
+          {/* Interactive Map */}
         <View style={styles.mapContainer}>
-          <SafeWalkMapView initialRegion={mockRegion} />
+          <MapView
+            style={StyleSheet.absoluteFillObject}
+            region={defaultRegion}
+            onPress={(e) => setLocation(e.nativeEvent.coordinate)}
+          >
+            {location && (
+              <Marker
+                coordinate={location}
+                draggable
+                onDragEnd={(e) => setLocation(e.nativeEvent.coordinate)}
+              />
+            )}
+          </MapView>
           <TouchableOpacity
             style={styles.closeButton}
             onPress={onCancel}
@@ -135,6 +169,25 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
             </View>
           </View>
 
+          
+          {/* Location Coordinates Input */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Selected Location</Text>
+            <View style={[styles.coordinatesBox, SHADOWS.sm]}>
+              <MaterialCommunityIcons name="map-marker" size={20} color={COLORS.primary} />
+              <TextInput
+                style={styles.coordinatesInput}
+                value={
+                  location
+                    ? `${locationAddress} | ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+                    : 'Locating...'
+                }
+                editable={false}
+                multiline={true}
+              />
+            </View>
+          </View>
+
           {/* Description Input */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Additional Details (Optional)</Text>
@@ -161,9 +214,7 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
               Your report is anonymous and helps keep the community safe
             </Text>
           </View>
-        </ScrollView>
-
-        {/* Action Buttons */}
+                {/* Action Buttons */}
         <View style={[styles.actions, SHADOWS.lg]}>
           <TouchableOpacity
             style={[styles.cancelButton, SHADOWS.sm]}
@@ -181,6 +232,9 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
             style={{ flex: 1 }}
           />
         </View>
+        </ScrollView>
+
+
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -263,6 +317,22 @@ const styles = StyleSheet.create({
   },
   typeLabelActive: {
     color: COLORS.primary,
+  },
+  coordinatesBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.md,
+  },
+  coordinatesInput: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: COLORS.text.primary,
   },
   textArea: {
     backgroundColor: COLORS.card,

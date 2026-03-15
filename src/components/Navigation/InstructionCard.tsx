@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../theme';
 
 interface InstructionCardProps {
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
   },
   instructionText: {
-    fontSize: TYPOGRAPHY.sizes.md,
+    fontSize: TYPOGRAPHY.sizes.base,
     color: COLORS.text.secondary,
     marginTop: 4,
   },

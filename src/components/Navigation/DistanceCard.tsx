@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../theme';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { COLORS, SHADOWS, TYPOGRAPHY } from '../../theme';
 
 interface DistanceCardProps {
   distanceRemaining: number; // in km
@@ -33,12 +33,13 @@ export const DistanceCard: React.FC<DistanceCardProps> = ({
       <View style={styles.metricsContainer}>
         <Text style={styles.timeRemainingText}>{timeString}</Text>
         <Text style={styles.detailsText}>
-          {distanceRemaining.toFixed(1)} km • ETA {arrivalTime}
+          {distanceRemaining.toFixed(1)} km ï¿½ ETA {arrivalTime}
         </Text>
       </View>
       
       <TouchableOpacity style={styles.endButton} onPress={onEndNavigation}>
-        <MaterialCommunityIcons name="close" size={32} color={COLORS.card} />
+        <MaterialCommunityIcons name="close" size={20} color={COLORS.card} style={{ marginRight: 4 }} />
+        <Text style={styles.endButtonText}>Exit</Text>
       </TouchableOpacity>
     </View>
   );
@@ -65,17 +66,23 @@ const styles = StyleSheet.create({
     color: '#22C55E', // Safe green for time
   },
   detailsText: {
-    fontSize: TYPOGRAPHY.sizes.md,
+    fontSize: TYPOGRAPHY.sizes.base,
     color: COLORS.text.secondary,
     marginTop: 4,
   },
   endButton: {
     backgroundColor: COLORS.danger,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    paddingHorizontal: 20,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  endButtonText: {
+    color: COLORS.card,
+    fontWeight: 'bold',
+    fontSize: TYPOGRAPHY.sizes.base,
   },
 });
 
