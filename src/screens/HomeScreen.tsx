@@ -10,7 +10,7 @@ import { RouteDrawer } from '../components/RouteDrawer';
 import { Incident, mockIncidents } from '../data/mockIncidents';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { getCurrentLocation, requestLocationPermissions, startLocationUpdates } from '../services/locationService';
-import { fetchLocationSuggestions, fetchRoute, LocationSuggestion, RouteProfile } from '../services/mapsService';
+import { fetchLocationSuggestions, fetchRoute, fetchPlaceDetails, LocationSuggestion, RouteProfile } from '../services/mapsService';
 import { calculateRouteRisk, detectIncidentsOnRoute, RouteRiskCalculation, RouteSegment } from '../utils/routeIncidentDetector';
 
 export const HomeScreen: React.FC = () => {
@@ -174,16 +174,117 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
+  const handlePoiClick = async (e: any) => {
+    const { coordinate, name, placeId } = e.nativeEvent;
+    
+    setDestination(coordinate);
+    setSearchQuery(name || 'Selected Location');
+
+    // Clear existing route to show the fresh location pin and drawer
+    setRouteCoordinates([]);
+    setRouteSegments([]);
+    setActiveIncidents([]);
+    setRouteRiskInfo(null);
+    setRouteParams(null);
+
+    // Zoom map smoothly
+    if (mapRef.current) {
+        mapRef.current.animateToRegion({
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+        }, 1000);
+    }
+    
+    // Open drawer with standard initial structure
+    setSelectedPlace({
+      id: placeId || `${coordinate.latitude}-${coordinate.longitude}`,
+      name: name || 'Selected Location',
+      address: name || 'Fetching details...',
+      photos: [`https://picsum.photos/seed/${encodeURIComponent(name || 'default')}/800/600`],
+      duration: '',
+      distance: ''
+    });
+
+    try {
+        const details = await fetchPlaceDetails(name || 'Location', coordinate);
+        setSelectedPlace(prev => prev ? {
+            ...prev,
+            address: details.address,
+            photos: details.photos,
+            type: details.type || 'Location',
+        } : null);
+    } catch (err) {
+        console.log('Failed fetching map POI details', err);
+    }
+  };
+
   const handleSuggestionPress = async (suggestion: LocationSuggestion) => {
     Keyboard.dismiss();
     setSearchQuery(suggestion.label); 
     setShowSuggestions(false); 
     setDestination(suggestion.coordinates); 
     
-    if (location) {
-      calculateRoute(suggestion.coordinates, routeMode);
-    } else {
-      Alert.alert('Error', 'Your GPS location is not available yet.');
+    // Clear existing route to show the fresh location pin and drawer
+    setRouteCoordinates([]);
+    setRouteSegments([]);
+    setActiveIncidents([]);
+    setRouteRiskInfo(null);
+    setRouteParams(null);
+
+    // Zoom map cleanly
+    if (mapRef.current) {
+         mapRef.current.animateToRegion({
+            latitude: suggestion.coordinates.latitude,
+            longitude: suggestion.coordinates.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+         }, 1000);
+    }
+    
+    // Open drawer with standard initial structure, then enrich with real API details
+    setSelectedPlace({
+      id: `${suggestion.coordinates.latitude}-${suggestion.coordinates.longitude}`,
+      name: suggestion.name,
+      address: suggestion.label,
+      photos: [`https://picsum.photos/seed/${encodeURIComponent(suggestion.name)}/800/600`],
+      duration: '',
+      distance: ''
+    });
+
+    try {
+       const details = await fetchPlaceDetails(suggestion.name, suggestion.coordinates);
+       setSelectedPlace({
+         id: details.id,
+         name: details.name,
+         address: details.address,
+         photos: details.photos,
+         type: details.type || 'Location',
+         duration: '',
+         distance: ''
+       });
+    } catch (e) {
+       console.log('Failed fetching live place details', e);
+    }
+  };
+
+  const clearRoute = () => {
+    setDestination(null);
+    setSearchQuery('');
+    setRouteCoordinates([]);
+    setRouteSegments([]);
+    setActiveIncidents([]);
+    setRouteRiskInfo(null);
+    setRouteParams(null);
+    setSelectedPlace(null);
+    if (mapRef.current && location) {
+      mapRef.current.animateToRegion({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
     }
   };
 
@@ -215,6 +316,7 @@ export const HomeScreen: React.FC = () => {
           style={styles.map}
           showsUserLocation={true}
           showsMyLocationButton={false}
+          onPoiClick={handlePoiClick}
         >
         {location && (
           <>
@@ -367,6 +469,15 @@ export const HomeScreen: React.FC = () => {
 
       {/* Floating Action Buttons */}
       <View style={styles.fabContainer}>
+        {routeParams && (
+          <TouchableOpacity 
+            style={[styles.fab, styles.exitFab]} 
+            onPress={clearRoute}
+          >
+            <Text style={styles.exitText}>Exit Route</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity 
           style={[styles.fab, styles.recenterFab]} 
           onPress={() => centerMapOnLocation()}
@@ -385,11 +496,18 @@ export const HomeScreen: React.FC = () => {
             place={selectedPlace}
             onClose={() => setSelectedPlace(null)}
             onDirections={(place) => {
-              if (location) {
-                calculateRoute({
-                  latitude: location.latitude + 0.005,
-                  longitude: location.longitude + 0.005
-                }, routeMode);
+              if (location && destination) {
+                calculateRoute(destination, routeMode);
+              } else {
+                Alert.alert('Error', 'Destination or location not set.');
+              }
+            }}
+            onStart={(place) => {
+              if (location && destination) {
+                calculateRoute(destination, routeMode);
+                // Can expand this to directly navigate to NavigationMode if implemented
+              } else {
+                Alert.alert('Error', 'Destination or location not set.');
               }
             }}
           />
@@ -550,12 +668,23 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   sosFab: {
-    backgroundColor: '#F44336', 
+    backgroundColor: '#F44336',
   },
   sosText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  exitFab: {
+    backgroundColor: '#333333',
+    paddingHorizontal: 16,
+    width: 'auto',
+    borderRadius: 25,
+  },
+  exitText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   routeCardContainer: {
     position: 'absolute',
