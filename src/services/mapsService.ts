@@ -70,94 +70,12 @@ export const fetchLocationSuggestions = async (
   }
 };
 
-export interface PlaceDetails {
-  id: string;
-  name: string;
-  address: string;
-  photos: string[];
-  type?: string;
-  coordinates: Coordinates;
-}
-
-/**
- * Fetches real details for a location, including reverse geocoded address and photos
- */
-export const fetchPlaceDetails = async (
-  name: string,
-  coordinates: Coordinates
-): Promise<PlaceDetails> => {
-  try {
-    // 1. Reverse Geocode for Address
-    const geoUrl = `https://api.openrouteservice.org/geocode/reverse?api_key=${OPENROUTE_API_KEY}&point.lon=${coordinates.longitude}&point.lat=${coordinates.latitude}&size=1`;
-    const geoRes = await fetch(geoUrl);
-    const geoData = await geoRes.json();
-    
-    let address = 'Unknown Address';
-    if (geoData.features && geoData.features.length > 0) {
-      address = geoData.features[0].properties.label || geoData.features[0].properties.name || address;
-    }
-
-    // 2. Fetch Photos using Wikipedia API as primary, fallback to static reliable placeholder
-    let photos: string[] = [];
-    try {
-      const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(name)}&utf8=&format=json&srlimit=1`;
-      const wikiSearchRes = await fetch(wikiSearchUrl);
-      const wikiSearchData = await wikiSearchRes.json();
-      
-      if (wikiSearchData.query?.search?.length > 0) {
-        const title = wikiSearchData.query.search[0].title;
-        const wikiImgUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json&piprop=original|thumbnail&pithumbsize=800&titles=${encodeURIComponent(title)}`;
-        const wikiImgRes = await fetch(wikiImgUrl);
-        const wikiImgData = await wikiImgRes.json();
-        
-        const pages = wikiImgData.query?.pages;
-        if (pages) {
-          const pageId = Object.keys(pages)[0];
-          if (pages[pageId].original?.source) {
-            photos.push(pages[pageId].original.source);
-          }
-          if (pages[pageId].thumbnail?.source) {
-            photos.push(pages[pageId].thumbnail.source);
-          }
-        }
-      }
-    } catch (e) {
-      console.log('Error fetching wiki photos:', e);
-    }
-
-    // Always ensure we have some photos to make the UI look good
-    const defaultPhotos = [
-      `https://picsum.photos/seed/${encodeURIComponent(name + '1')}/800/600`,
-      `https://picsum.photos/seed/${encodeURIComponent(name + '2')}/400/400`,
-      `https://picsum.photos/seed/${encodeURIComponent(name + '3')}/400/400`,
-    ];
-    
-    // De-duplicate and combine
-    photos = [...new Set([...photos, ...defaultPhotos])].slice(0, 3);
-
-    return {
-      id: `${coordinates.latitude}-${coordinates.longitude}`,
-      name,
-      address,
-      photos,
-      coordinates
-    };
-  } catch (error) {
-    console.error('Error fetching place details:', error);
-    return {
-      id: `${coordinates.latitude}-${coordinates.longitude}`,
-      name,
-      address: 'Details unavailable',
-      photos: [
-        `https://picsum.photos/seed/${encodeURIComponent(name)}/800/600`
-      ],
-      coordinates
-    };
-  }
-};
-
 /**
  * Fetches the route from OpenRouteService API with detailed information
+ * @param origin Start coordinates
+ * @param destination End coordinates
+ * @param profile Transportation mode (driving-car, cycling-regular, foot-walking)
+ * @returns Route information including coordinates, distance, duration, and traffic data
  */
 export const fetchRoute = async (
   origin: Coordinates,
