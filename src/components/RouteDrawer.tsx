@@ -1,10 +1,10 @@
-﻿import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import BottomSheet, { BottomSheetScrollView, BottomSheetView } from '@gorhom/bottom-sheet';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+﻿import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Incident } from '../data/mockIncidents';
-import { IncidentCard } from './IncidentCard';
 import { COLORS } from '../theme';
+import { IncidentCard } from './IncidentCard';
 
 interface Props {
   distance: number;
@@ -24,12 +24,15 @@ export const RouteDrawer: React.FC<Props> = ({
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['30%', '55%', '90%'], []);
   const [selectedTab, setSelectedTab] = useState<'drive' | 'details'>('drive');
+  const [sheetIndex, setSheetIndex] = useState(isVisible ? 1 : -1);
 
   useEffect(() => {
     if (isVisible) {
       bottomSheetRef.current?.snapToIndex(1);
+      setSheetIndex(1);
     } else {
       bottomSheetRef.current?.close();
+      setSheetIndex(-1);
     }
   }, [isVisible]);
 
@@ -45,17 +48,32 @@ export const RouteDrawer: React.FC<Props> = ({
   };
 
   return (
-    <BottomSheet
-      ref={bottomSheetRef}
-      index={isVisible ? 1 : -1}
-      snapPoints={snapPoints}
-      enablePanDownToClose={true}
-      style={styles.sheet}
-    >
-      <BottomSheetView style={styles.headerContainer}>
-        {/* Top Summary */}
-        <View style={styles.summarySection}>
-          <View style={styles.mainContent}>
+    <>
+      {sheetIndex === -1 && isVisible && (
+        <View style={styles.floatingButtonContainer}>
+          <TouchableOpacity 
+            style={styles.moreDetailsButton} 
+            onPress={() => bottomSheetRef.current?.snapToIndex(1)}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="chevron-up" size={24} color="#fff" />
+            <Text style={styles.moreDetailsText}>More Details</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={isVisible ? 1 : -1}
+        snapPoints={snapPoints}
+        enablePanDownToClose={true}
+        onChange={(index) => setSheetIndex(index)}
+        style={styles.sheet}
+      >
+        <BottomSheetScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.headerContainer}>
+            {/* Top Summary */}
+            <View style={styles.summarySection}>
+              <View style={styles.mainContent}>
             <View style={styles.timeSection}>
               <Text style={styles.mainTime}>{mins} min</Text>
               <Text style={styles.arrivalTime}>Arrive by {getEta(duration)}</Text>
@@ -105,13 +123,12 @@ export const RouteDrawer: React.FC<Props> = ({
             </Text>
           </TouchableOpacity>
         </View>
-      </BottomSheetView>
+      </View>
 
-      <BottomSheetScrollView contentContainerStyle={styles.scrollContent}>
-        {selectedTab === 'drive' && (
-          <View style={styles.routesContainer}>
-            <View style={styles.routeOption}>
-              <View style={styles.routeOptionContent}>
+      {selectedTab === 'drive' && (
+        <View style={styles.routesContainer}>
+          <View style={styles.routeOption}>
+            <View style={styles.routeOptionContent}>
                 <View style={styles.routeTime}>
                   <Text style={styles.routeTimeText}>{mins} min</Text>
                   <Text style={styles.recommendedLabel}>Recommended</Text>
@@ -167,6 +184,7 @@ export const RouteDrawer: React.FC<Props> = ({
         )}
       </BottomSheetScrollView>
     </BottomSheet>
+    </>
   );
 };
 
@@ -344,5 +362,34 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 100,
+    elevation: 10,
+  },
+  moreDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  moreDetailsText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 4,
+    marginRight: 4,
   },
 });
