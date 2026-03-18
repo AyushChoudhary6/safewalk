@@ -3,7 +3,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LocationObjectCoords, LocationSubscription } from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Circle, Marker, Polyline } from 'react-native-maps';
+import MapView, { Circle, Marker, Polyline } from '../components/Map/MapView';
 import { IncidentMarker } from '../components/IncidentMarker';
 import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
@@ -11,6 +11,7 @@ import { Incident, mockIncidents } from '../data/mockIncidents';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { getCurrentLocation, requestLocationPermissions, startLocationUpdates } from '../services/locationService';
 import { fetchLocationSuggestions, fetchRoute, LocationSuggestion, RouteProfile } from '../services/mapsService';
+import { apiService } from '../services/apiService';
 import { calculateRouteRisk, detectIncidentsOnRoute, RouteRiskCalculation, RouteSegment } from '../utils/routeIncidentDetector';
 
 export const HomeScreen: React.FC = () => {
@@ -63,9 +64,14 @@ export const HomeScreen: React.FC = () => {
 
       setLocation(currentLoc);
       centerMapOnLocation(currentLoc);
+      
+      // Fetch nearby incidents from backend API
+      await fetchNearbyIncidents(currentLoc);
 
       const sub = await startLocationUpdates((newLoc) => {
         setLocation(newLoc);
+        // Fetch incidents whenever location updates
+        fetchNearbyIncidents(newLoc);
       });
       locationSubRef.current = sub;
     } catch (error) {
@@ -73,6 +79,42 @@ export const HomeScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to retrieve location');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNearbyIncidents = async (coords: LocationObjectCoords) => {
+    try {
+      const response = await apiService.getNearbyIncidents(
+        coords.latitude,
+        coords.longitude,
+        500 // 500m radius
+      );
+      
+      if (response.success && response.data) {
+        // Transform API response to match Incident interface
+        const incidents: Incident[] = response.data.map((incident: any) => ({
+          id: incident.id,
+          type: incident.type,
+          latitude: incident.latitude,
+          longitude: incident.longitude,
+          severity: incident.severity || 3,
+          timestamp: incident.createdAt,
+          verified: incident.verificationCount > 0,
+          verifiedCount: incident.verificationCount || 0,
+          description: incident.description || '',
+          isAnonymous: incident.isAnonymous ?? true,
+        }));
+        
+        setActiveIncidents(incidents);
+      } else {
+        // If API fails, fallback to mock data
+        console.warn('Failed to fetch incidents from API, using mock data');
+        setActiveIncidents(mockIncidents);
+      }
+    } catch (error) {
+      console.error('Error fetching nearby incidents:', error);
+      // Fallback to mock data on error
+      setActiveIncidents(mockIncidents);
     }
   };
 
@@ -156,13 +198,51 @@ export const HomeScreen: React.FC = () => {
           console.log(`-------------------------------------------------\n`);
           // ---------------------------------------------
 
-          // Detect incidents along the new route
-          const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
-          const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
-          
-          setActiveIncidents(riskInfo.incidentsOnRoute);
-          setRouteSegments(riskInfo.routeSegments);
-          setRouteRiskInfo(riskInfo);
+          // Fetch incidents along the route from backend API
+          try {
+            const incidentsResponse = await apiService.getNearbyIncidents(
+              (location.latitude + destLoc.latitude) / 2,
+              (location.longitude + destLoc.longitude) / 2,
+              1000 // 1km radius around route
+            );
+
+            let routeIncidents: Incident[] = [];
+            
+            if (incidentsResponse.success && incidentsResponse.data) {
+              routeIncidents = incidentsResponse.data.map((incident: any) => ({
+                id: incident.id,
+                type: incident.type,
+                latitude: incident.latitude,
+                longitude: incident.longitude,
+                severity: incident.severity || 3,
+                timestamp: incident.createdAt,
+                verified: incident.verificationCount > 0,
+                verifiedCount: incident.verificationCount || 0,
+                description: incident.description || '',
+                isAnonymous: incident.isAnonymous ?? true,
+              }));
+            } else {
+              // Fallback to mock data if API fails
+              routeIncidents = mockIncidents;
+            }
+
+            // Detect which incidents are actually on the route
+            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, routeIncidents, 200);
+            const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
+            
+            setActiveIncidents(riskInfo.incidentsOnRoute);
+            setRouteSegments(riskInfo.routeSegments);
+            setRouteRiskInfo(riskInfo);
+          } catch (error) {
+            console.error('Error fetching route incidents from API, using mock data:', error);
+            // Fallback to mock data
+            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
+            const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
+            
+            setActiveIncidents(riskInfo.incidentsOnRoute);
+            setRouteSegments(riskInfo.routeSegments);
+            setRouteRiskInfo(riskInfo);
+          }
 
           setRouteParams({
               origin: location,
@@ -301,7 +381,7 @@ export const HomeScreen: React.FC = () => {
         )}
 
         {/* Detected Crime Incidents */}
-        {(routeParams ? activeIncidents : mockIncidents).map((incident) => (
+        {(activeIncidents.length > 0 ? activeIncidents : mockIncidents).map((incident) => (
           <React.Fragment key={`incident-${incident.id}`}>
             <Circle
               center={{ latitude: incident.latitude, longitude: incident.longitude }}

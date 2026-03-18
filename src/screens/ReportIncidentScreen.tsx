@@ -14,11 +14,14 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker } from '../components/Map/MapView';
 import { getCurrentLocation } from '../services/locationService';
 import { fetchAddressFromCoordinates } from '../services/mapsService';
+import { apiService } from '../services/apiService';
 import { PrimaryButton } from '../components';
 import {
     BORDER_RADIUS,
@@ -34,11 +37,11 @@ interface ReportIncidentScreenProps {
 }
 
 const INCIDENT_TYPES = [
-  { id: 'poor_lighting', label: 'Poor Lighting', icon: 'lightbulb-off' },
-  { id: 'harassment', label: 'Harassment', icon: 'alert-circle' },
-  { id: 'theft', label: 'Theft', icon: 'lock-alert' },
-  { id: 'unsafe_area', label: 'Unsafe Area', icon: 'shield-alert' },
-  { id: 'felt_safe', label: 'Felt Safe', icon: 'check-circle' },
+  { id: 'POOR_LIGHTING', label: 'Poor Lighting', icon: 'lightbulb-off' },
+  { id: 'HARASSMENT', label: 'Harassment', icon: 'alert-circle' },
+  { id: 'THEFT', label: 'Theft', icon: 'lock-alert' },
+  { id: 'ASSAULT', label: 'Assault', icon: 'shield-alert' },
+  { id: 'SUSPICIOUS_ACTIVITY', label: 'Suspicious Activity', icon: 'alert-octagon' },
 ];
 
 export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
@@ -50,6 +53,8 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState<{latitude: number; longitude: number} | null>(null);
   const [locationAddress, setLocationAddress] = useState<string>('Locating...');
+  const [severity, setSeverity] = useState(3);
+  const [submitting, setSubmitting] = useState(false);
 
   React.useEffect(() => {
     const fetchLoc = async () => {
@@ -76,18 +81,57 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!selectedType) return;
+    if (!selectedType || !location) {
+      Alert.alert('Missing Information', 'Please select an incident type and ensure location is available');
+      return;
+    }
 
-    setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoading(false);
+    setSubmitting(true);
+    try {
+      // Call backend API to report incident
+      const response = await apiService.reportIncident(
+        selectedType,
+        location.latitude,
+        location.longitude,
+        severity,
+        description || undefined,
+        true // anonymous
+      );
 
-    onSubmit?.({
-      type: selectedType,
-      description,
-      timestamp: new Date().toISOString(),
-      location: location || defaultRegion,
-    });
+      if (response.success) {
+        // Show success message
+        Alert.alert(
+          'Report Submitted',
+          'Thank you for helping keep the community safe!',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Call the onSubmit callback with the incident data
+                onSubmit?.({
+                  ...response.data,
+                  type: selectedType,
+                  description,
+                  timestamp: new Date().toISOString(),
+                  location,
+                });
+              },
+            },
+          ]
+        );
+      } else {
+        throw new Error(response.error || 'Failed to submit report');
+      }
+    } catch (error: any) {
+      console.error('Error submitting incident:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to submit report. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -146,6 +190,7 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
                     selectedType === type.id && styles.typeButtonActive,
                   ]}
                   onPress={() => setSelectedType(type.id)}
+                  disabled={submitting}
                 >
                   <MaterialCommunityIcons
                     name={type.icon as any}
@@ -169,6 +214,33 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
             </View>
           </View>
 
+          {/* Severity Level */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Severity Level</Text>
+            <View style={styles.severityContainer}>
+              {[1, 2, 3, 4, 5].map((level) => (
+                <TouchableOpacity
+                  key={level}
+                  style={[
+                    styles.severityButton,
+                    severity === level && styles.severityButtonActive,
+                  ]}
+                  onPress={() => setSeverity(level)}
+                  disabled={submitting}
+                >
+                  <Text
+                    style={[
+                      styles.severityText,
+                      severity === level && styles.severityTextActive,
+                    ]}
+                  >
+                    {level}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.severityHint}>1 = Low Risk, 5 = High Risk</Text>
+          </View>
           
           {/* Location Coordinates Input */}
           <View style={styles.section}>
@@ -211,7 +283,7 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
               color={COLORS.primary}
             />
             <Text style={styles.infoText}>
-              Your report is anonymous and helps keep the community safe
+              Your report is anonymous and helps keep the community safe. Data is shared in real-time.
             </Text>
           </View>
                 {/* Action Buttons */}
@@ -219,19 +291,27 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
           <TouchableOpacity
             style={[styles.cancelButton, SHADOWS.sm]}
             onPress={onCancel}
-            disabled={loading}
+            disabled={submitting}
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
 
           <PrimaryButton
-            title="Submit Report"
+            title={submitting ? "Submitting..." : "Submit Report"}
             onPress={handleSubmit}
-            loading={loading}
-            disabled={!selectedType || loading}
+            loading={submitting}
+            disabled={!selectedType || submitting || !location}
             style={{ flex: 1 }}
           />
         </View>
+
+        {/* Real-time Status */}
+        {submitting && (
+          <View style={styles.statusContainer}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.statusText}>Sending to SafeWalk network...</Text>
+          </View>
+        )}
         </ScrollView>
 
 
@@ -318,6 +398,38 @@ const styles = StyleSheet.create({
   typeLabelActive: {
     color: COLORS.primary,
   },
+  severityContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+  },
+  severityButton: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  severityButtonActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: `${COLORS.primary}10`,
+  },
+  severityText: {
+    fontSize: TYPOGRAPHY.sizes.base,
+    fontWeight: '600',
+    color: COLORS.text.secondary,
+  },
+  severityTextActive: {
+    color: COLORS.primary,
+  },
+  severityHint: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: COLORS.text.tertiary,
+    marginTop: SPACING.sm,
+    textAlign: 'center',
+  },
   coordinatesBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -377,6 +489,19 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: COLORS.text.primary,
     fontSize: TYPOGRAPHY.sizes.base,
+    fontWeight: '600',
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.base,
+    alignItems: 'center',
+    gap: SPACING.md,
+    backgroundColor: `${COLORS.primary}10`,
+  },
+  statusText: {
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: COLORS.primary,
     fontWeight: '600',
   },
 });

@@ -75,13 +75,16 @@ export const RootNavigator: React.FC = () => {
                 presentation: 'modal',
               }}
             >
-              {() => (
+              {({ navigation }) => (
                 <ReportIncidentScreen
-                  onSubmit={() => {
-                    /* Handle report submit */
+                  onSubmit={(incident) => {
+                    // Report submitted successfully, close modal
+                    navigation.goBack();
+                    // The HomeScreen will automatically refresh incidents
+                    // since location updates trigger incident fetches
                   }}
                   onCancel={() => {
-                    /* Handle cancel */
+                    navigation.goBack();
                   }}
                 />
               )}

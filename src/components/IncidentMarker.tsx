@@ -1,5 +1,5 @@
 import React from 'react';
-import { Marker } from 'react-native-maps';
+import { Marker } from './Map/MapView';
 import { Incident } from '../data/mockIncidents';
 
 interface Props {
