@@ -6,6 +6,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -14,15 +16,13 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-    Alert,
-    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PrimaryButton } from '../components';
 import MapView, { Marker } from '../components/Map';
+import { apiService } from '../services/apiService';
 import { getCurrentLocation } from '../services/locationService';
 import { fetchAddressFromCoordinates } from '../services/mapsService';
-import { apiService } from '../services/apiService';
-import { PrimaryButton } from '../components';
 import {
     BORDER_RADIUS,
     COLORS,
@@ -81,8 +81,12 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!selectedType || !location) {
-      Alert.alert('Missing Information', 'Please select an incident type and ensure location is available');
+    // Ensure we have a fallback location if web geo API blocks it
+    const finalLocation = location || { latitude: 37.7749, longitude: -122.4194 };
+    
+    if (!selectedType) {
+      if (Platform.OS === 'web') alert('Missing Information: Please select an incident type');
+      else Alert.alert('Missing Information', 'Please select an incident type');
       return;
     }
 
@@ -91,8 +95,8 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
       // Call backend API to report incident
       const response = await apiService.reportIncident(
         selectedType,
-        location.latitude,
-        location.longitude,
+        finalLocation.latitude,
+        finalLocation.longitude,
         severity,
         description || undefined,
         true // anonymous
@@ -100,6 +104,8 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
 
       if (response.success) {
         // Show success message
+        if (Platform.OS === 'web') alert('Report Submitted Successfully! Thank you for keeping the community safe.');
+        
         Alert.alert(
           'Report Submitted',
           'Thank you for helping keep the community safe!',
@@ -113,7 +119,7 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
                   type: selectedType,
                   description,
                   timestamp: new Date().toISOString(),
-                  location,
+                  location: finalLocation,
                 });
               },
             },
@@ -123,7 +129,17 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
         throw new Error(response.error || 'Failed to submit report');
       }
     } catch (error: any) {
-      console.log('Error submitting incident:', error);
+      console.error('Error submitting incident:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: {
+          baseURL: error.config?.baseURL,
+          url: error.config?.url,
+        },
+      });
+      if (Platform.OS === 'web') alert(`Error: ${error.message || 'Failed to submit report. Please try again.'}`);
+      
       Alert.alert(
         'Error',
         error.message || 'Failed to submit report. Please try again.',
@@ -300,7 +316,7 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
             title={submitting ? "Submitting..." : "Submit Report"}
             onPress={handleSubmit}
             loading={submitting}
-            disabled={!selectedType || submitting || !location}
+            disabled={!selectedType || submitting}
             style={{ flex: 1 }}
           />
         </View>

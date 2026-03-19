@@ -3,10 +3,23 @@
  * Central service for all backend API calls
  */
 
-import axios, { AxiosInstance } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.67:3000/api';
+// Determine API base URL based on platform
+const getApiBaseUrl = () => {
+  // Try to use environment variable first
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // To avoid localhost networking issues across emulators and devices,
+  // we're going to use your machine's actual IP address.
+  // When running on device/emulator, 'localhost' often refers to the device itself.
+  return 'http://192.168.10.3:5050/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiService {
   private api: AxiosInstance;
@@ -37,6 +50,20 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       async (error) => {
+        console.error('API Error:', {
+          message: error.message,
+          code: error.code,
+          config: error.config ? {
+            baseURL: error.config.baseURL,
+            url: error.config.url,
+            method: error.config.method,
+          } : null,
+          response: error.response ? {
+            status: error.response.status,
+            data: error.response.data,
+          } : null,
+        });
+        
         if (error.response?.status === 401) {
           // Token expired, clear it
           await AsyncStorage.removeItem('authToken');
@@ -89,14 +116,22 @@ class ApiService {
     description?: string,
     isAnonymous?: boolean
   ) {
-    const response = await this.api.post('/incidents', {
+    const payload = {
       type: type.toUpperCase(),
       latitude,
       longitude,
       severity: severity || 3,
       description,
       isAnonymous: isAnonymous ?? true,
+    };
+    
+    console.log('📤 Sending incident report:', {
+      url: `${this.api.defaults.baseURL}/incidents`,
+      payload,
     });
+    
+    const response = await this.api.post('/incidents', payload);
+    console.log('✅ Incident response:', response.data);
     return response.data;
   }
 
