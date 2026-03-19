@@ -5,18 +5,8 @@
  * - MapView.native.tsx for native (iOS/Android)
  */
 
-import { Platform } from 'react-native';
+import MapView, { Marker, Polyline, Circle } from './MapView';
 
-let MapComponents;
-if (Platform.OS === 'web') {
-  MapComponents = require('./MapView.web');
-} else {
-  MapComponents = require('./MapView.native');
-}
-
-export const MapView = MapComponents.MapView || MapComponents.default;
-export const Marker = MapComponents.Marker;
-export const Polyline = MapComponents.Polyline;
-export const Circle = MapComponents.Circle;
+export { MapView, Marker, Polyline, Circle };
 export default MapView;
 

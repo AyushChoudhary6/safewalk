@@ -3,13 +3,14 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LocationObjectCoords, LocationSubscription } from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Circle, Marker, Polyline } from '../components/Map/MapView';
+import { MapView, Circle, Marker, Polyline } from '../components/Map';
 import { IncidentMarker } from '../components/IncidentMarker';
 import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
 import { Incident, mockIncidents } from '../data/mockIncidents';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { getCurrentLocation, requestLocationPermissions, startLocationUpdates } from '../services/locationService';
+// eslint-disable-next-line import/namespace
 import { fetchLocationSuggestions, fetchRoute, LocationSuggestion, RouteProfile } from '../services/mapsService';
 import { apiService } from '../services/apiService';
 import { calculateRouteRisk, detectIncidentsOnRoute, RouteRiskCalculation, RouteSegment } from '../utils/routeIncidentDetector';

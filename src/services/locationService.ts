@@ -21,8 +21,17 @@ export const getCurrentLocation = async (): Promise<Location.LocationObjectCoord
     const location = await Location.getCurrentPositionAsync({});
     return location.coords;
   } catch (error) {
-    console.error('Error getting current location:', error);
-    return null;
+    console.warn('Error getting current location (using fallback):', error);
+    // Fallback to New Delhi coordinates
+    return {
+      latitude: 28.6139,
+      longitude: 77.2090,
+      altitude: null,
+      accuracy: null,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+    };
   }
 };
 
@@ -42,7 +51,7 @@ export const startLocationUpdates = async (
     );
     return subscription;
   } catch (error) {
-    console.error('Error starting location updates:', error);
+    console.warn(\'Error starting location updates (ignoring on web):\', error.message);
     return null;
   }
 };

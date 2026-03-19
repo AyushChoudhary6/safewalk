@@ -1,3 +1,4 @@
+import { HttpStatusCode } from "axios";
 
 // OpenRouteService API Key
 const OPENROUTE_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImJlNmQwZDhiZDc0MTRlNDI4NTI2Y2IzNzdjZDZlMTdmIiwiaCI6Im11cm11cjY0In0=';
@@ -74,10 +75,13 @@ export const fetchLocationSuggestions = async (
     });
 
     const fetchPromise = (async () => {
-      const response = await fetch(url);
-      const data = await response.json();
-      return data;
-    })();
+        const response = await fetch(url);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error("HTTP " + response.status + ": " + text.substring(0, 100));
+        }
+        return await response.json();
+      })();
 
     const data = await Promise.race([fetchPromise, timeoutPromise]);
     
@@ -111,9 +115,13 @@ export const fetchAddressFromCoordinates = async (coordinates: Coordinates): Pro
     });
 
     const fetchPromise = (async () => {
-      const response = await fetch(url);
-      return await response.json();
-    })();
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error("HTTP " + response.status + ": " + errText.substring(0, 100));
+        }
+        return await response.json();
+      })();
 
     const data = await Promise.race([fetchPromise, timeoutPromise]);
     
@@ -151,7 +159,11 @@ export const fetchRoute = async (
     const url = `https://api.openrouteservice.org/v2/directions/${safeProfile}?api_key=${OPENROUTE_API_KEY}&start=${origin.longitude},${origin.latitude}&end=${destination.longitude},${destination.latitude}`;
     
     const response = await fetchWithTimeout(url, {}, 10000);
-    const data = await response.json();
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error("HTTP " + response.status + ": " + errText.substring(0, 100));
+      }
+      const data = await response.json();
 
     console.log('Route API Response:', data);
 
@@ -243,3 +255,4 @@ export const fetchRoute = async (
     return { coordinates: [], distance: 0, duration: 0, error: error?.message || 'Network request failed' };
   }
 };
+

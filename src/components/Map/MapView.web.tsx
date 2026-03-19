@@ -1,173 +1,107 @@
-/**
- * Simplified MapView fallback for web
- * Uses a canvas-based map visualization or simple styling
- */
-
 import React, { useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { MapContainer, TileLayer, Marker as LeafletMarker, Polyline as LeafletPolyline, Circle as LeafletCircle, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L, { LatLngExpression } from 'leaflet';
 
-export const MapView = React.forwardRef<any, any>((props, ref) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+// Fix Leaflet icons issue
+delete (L.Icon.Default.prototype as any)._getIconUrl;
 
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
+
+const MapController = ({ region, mapRef }: any) => {
+  const map = useMap();
   useEffect(() => {
-    if (ref && typeof ref === 'object') {
-      ref.current = {
-        animateToRegion: () => {
-          // Fallback animation
+    if (region && region.latitude && region.longitude) {
+      map.setView([region.latitude, region.longitude], map.getZoom() || 13);
+    }
+  }, [region, map]);
+  
+  useEffect(() => {
+    if (mapRef) {
+      mapRef.current = {
+        animateToRegion: (r: any) => {
+          if (r && r.latitude && r.longitude) {
+            map.flyTo([r.latitude, r.longitude], 15);
+          }
         },
-        animateCamera: () => {
-          // Fallback animation
-        },
+        animateCamera: () => {},
       };
     }
-  }, [ref]);
+  }, [map, mapRef]);
+  return null;
+};
+
+export const MapView = React.forwardRef<any, any>((props, ref) => {
+  const { initialRegion, region, style, children, showsUserLocation } = props;
+  
+  const cent = region || initialRegion;
+  const initCenter: LatLngExpression = cent && cent.latitude ? [cent.latitude, cent.longitude] : [20, 77];
 
   return (
-    <View style={[styles.container, props.style]}>
-      {/* Web map placeholder using HTML div */}
-      <div
-        ref={containerRef as any}
-        style={{
-          flex: 1,
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#e5e3df',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '14px',
-          color: '#666',
-          borderRadius: '8px',
-          overflow: 'hidden',
-        }}
-      >
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <Text style={{ marginBottom: 10, fontSize: 16, fontWeight: 'bold' }}>
-            📍 Map View
-          </Text>
-          <Text style={{ fontSize: 12, color: '#999' }}>
-            Web map support - interactive features available on mobile
-          </Text>
-        </div>
+    <View style={[styles.container, style]}>
+      <div style={{ flex: 1, width: '100%', height: '100%' }}>
+        <MapContainer 
+          center={initCenter} 
+          zoom={13} 
+          style={{ height: '100%', width: '100%' }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <MapController region={region} mapRef={ref} />
+          {children}
+        </MapContainer>
       </div>
-
-      {/* Render children (markers, polylines, circles) */}
-      {props.showsUserLocation && (
-        <View style={styles.userLocationIndicator}>
-          <View style={styles.userDot} />
-          <Text style={styles.userText}>Current Location</Text>
-        </View>
-      )}
-
-      {props.children}
     </View>
   );
 });
 
 export default MapView;
 
-// Marker component for web fallback
-export const Marker: React.FC<any> = (props) => {
+const transformCoordinate = (coord: any) => [coord.latitude, coord.longitude] as LatLngExpression;
+
+export const Marker: React.FC<any> = ({ coordinate, children, onPress }) => {
+  if (!coordinate || typeof coordinate.latitude !== 'number' || typeof coordinate.longitude !== 'number') return null;
   return (
-    <TouchableOpacity
-      style={styles.markerPlaceholder}
-      onPress={props.onPress}
+    <LeafletMarker 
+      position={transformCoordinate(coordinate)}
+      eventHandlers={{ click: () => onPress?.() }}
     >
-      <View style={styles.markerDot} />
-    </TouchableOpacity>
+    </LeafletMarker>
   );
 };
 
-// Polyline component for web fallback
-export const Polyline: React.FC<any> = (props) => {
+export const Polyline: React.FC<any> = ({ coordinates, strokeColor, strokeWidth }) => {
+  if (!coordinates || !coordinates.length) return null;
+  const positions = coordinates.map(transformCoordinate);
   return (
-    <View style={[styles.polylinePlaceholder, { borderColor: props.strokeColor }]}>
-      <Text style={styles.polylineText}>Route</Text>
-    </View>
+    <LeafletPolyline 
+      positions={positions} 
+      pathOptions={{ color: strokeColor || 'blue', weight: strokeWidth || 3 }} 
+    />
   );
 };
 
-// Circle component for web fallback
-export const Circle: React.FC<any> = (props) => {
+export const Circle: React.FC<any> = ({ center, radius, fillColor, strokeColor }) => {
+  if (!center || typeof center.latitude !== 'number' || typeof center.longitude !== 'number') return null;
   return (
-    <View
-      style={[
-        styles.circlePlaceholder,
-        {
-          borderColor: props.strokeColor,
-          backgroundColor: props.fillColor,
-        },
-      ]}
-    >
-      <Text style={styles.circleText}>⚠</Text>
-    </View>
+    <LeafletCircle 
+      center={transformCoordinate(center)} 
+      radius={radius || 100} 
+      pathOptions={{ fillColor: fillColor || 'red', color: strokeColor || 'red', fillOpacity: 0.3 }} 
+    />
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
     overflow: 'hidden',
-  },
-  userLocationIndicator: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    alignItems: 'center',
-  },
-  userDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#2196F3',
-    marginBottom: 5,
-  },
-  userText: {
-    fontSize: 12,
-    color: '#2196F3',
-    fontWeight: '600',
-  },
-  markerPlaceholder: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#ff0000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  markerDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#fff',
-  },
-  polylinePlaceholder: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderRadius: 4,
-    padding: 8,
-    marginVertical: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  polylineText: {
-    fontSize: 12,
-    color: '#999',
-    fontWeight: '600',
-  },
-  circlePlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 5,
-  },
-  circleText: {
-    fontSize: 20,
-  },
+  }
 });
-
