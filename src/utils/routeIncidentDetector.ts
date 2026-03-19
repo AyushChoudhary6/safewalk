@@ -40,6 +40,48 @@ export const haversineDistance = (coords1: Coordinate, coords2: Coordinate): num
 };
 
 /**
+ * Generates 3 to 8 mock incidents randomly placed along a given route.
+ */
+export const generateMockRouteIncidents = (routeCoordinates: Coordinate[]): Incident[] => {
+  if (!routeCoordinates || routeCoordinates.length === 0) return [];
+  
+  const numIncidents = Math.floor(Math.random() * 6) + 3; // 3 to 8
+  const generatedIncidents: Incident[] = [];
+  
+  const incidentTypes = ['THEFT', 'HARASSMENT', 'POOR_LIGHTING', 'ASSAULT', 'SUSPICIOUS_ACTIVITY'] as const;
+  const descriptions = [
+    'Reported phone snatching',
+    'Group harassing passersby',
+    'Street lights broken or missing',
+    'Physical altercation reported',
+    'Suspicious individuals loitering'
+  ];
+
+  for (let i = 0; i < numIncidents; i++) {
+    // Pick a random coordinate along the route
+    const randomIndex = Math.floor(Math.random() * routeCoordinates.length);
+    const basePoint = routeCoordinates[randomIndex];
+    
+    // Add a tiny random offset (~10-20 meters) so they don't sit exactly perfectly on the line if zoomed in
+    const latOffset = (Math.random() - 0.5) * 0.0002;
+    const lngOffset = (Math.random() - 0.5) * 0.0002;
+    
+    const typeIndex = Math.floor(Math.random() * incidentTypes.length);
+    
+    generatedIncidents.push({
+      id: `mock-route-${Date.now()}-${i}`,
+      type: incidentTypes[typeIndex],
+      latitude: basePoint.latitude + latOffset,
+      longitude: basePoint.longitude + lngOffset,
+      severity: Math.floor(Math.random() * 4) + 2, // 2 to 5 severity
+      description: descriptions[typeIndex]
+    });
+  }
+  
+  return generatedIncidents;
+};
+
+/**
  * Finds incidents that are within a specified radius of ANY point on the route
  */
 export const detectIncidentsOnRoute = (

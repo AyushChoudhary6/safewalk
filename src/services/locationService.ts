@@ -51,7 +51,7 @@ export const startLocationUpdates = async (
     );
     return subscription;
   } catch (error) {
-    console.warn(\'Error starting location updates (ignoring on web):\', error.message);
+    console.warn('Error starting location updates (ignoring on web):', (error as Error).message);
     return null;
   }
 };

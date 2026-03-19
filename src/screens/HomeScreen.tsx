@@ -2,20 +2,20 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LocationObjectCoords, LocationSubscription } from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { IncidentMarker } from '../components/IncidentMarker';
 import MapView, { Circle, Marker, Polyline } from '../components/Map';
 import { SearchBar } from '../components/Map/SearchBar';
-import { IncidentMarker } from '../components/IncidentMarker';
 import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
 import { Incident, mockIncidents } from '../data/mockIncidents';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { getCurrentLocation, requestLocationPermissions, startLocationUpdates } from '../services/locationService';
-// eslint-disable-next-line import/namespace
-import { fetchLocationSuggestions, fetchRoute, LocationSuggestion, RouteProfile } from '../services/mapsService';
+ 
 import { apiService } from '../services/apiService';
-import { calculateRouteRisk, detectIncidentsOnRoute, RouteRiskCalculation, RouteSegment } from '../utils/routeIncidentDetector';
+import { fetchLocationSuggestions, fetchRoute, LocationSuggestion, RouteProfile } from '../services/mapsService';
+import { calculateRouteRisk, detectIncidentsOnRoute, generateMockRouteIncidents, RouteRiskCalculation, RouteSegment } from '../utils/routeIncidentDetector';
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -201,6 +201,9 @@ export const HomeScreen: React.FC = () => {
           console.log(`-------------------------------------------------\n`);
           // ---------------------------------------------
 
+          // Generate mock crime scenes (3-8) for this route
+          const mockRouteIncidents = generateMockRouteIncidents(routeData.coordinates);
+          
           // Fetch incidents along the route from backend API
           try {
             const incidentsResponse = await apiService.getNearbyIncidents(
@@ -230,8 +233,12 @@ export const HomeScreen: React.FC = () => {
             }
 
             // Detect which incidents are actually on the route
-            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, routeIncidents, 200);
-            const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
+            const detectedIncidents = detectIncidentsOnRoute(routeData.coordinates, routeIncidents, 200);
+            
+            // Combine detected incidents with mock crime scenes for the route
+            const allIncidentsOnRoute = [...detectedIncidents, ...mockRouteIncidents];
+
+            const riskInfo = calculateRouteRisk(routeData.coordinates, allIncidentsOnRoute, 200);
             
             setActiveIncidents(riskInfo.incidentsOnRoute);
             setRouteSegments(riskInfo.routeSegments);
@@ -239,8 +246,12 @@ export const HomeScreen: React.FC = () => {
           } catch (error) {
             console.log('Backend not available, using mock data for route incidents.');
             // Fallback to mock data
-            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
-            const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
+            const detectedIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
+            
+            // Combine detected incidents with mock crime scenes for the route
+            const allIncidentsOnRoute = [...detectedIncidents, ...mockRouteIncidents];
+
+            const riskInfo = calculateRouteRisk(routeData.coordinates, allIncidentsOnRoute, 200);
             
             setActiveIncidents(riskInfo.incidentsOnRoute);
             setRouteSegments(riskInfo.routeSegments);
