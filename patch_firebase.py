@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+content='''import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 const firebaseConfig = {
@@ -100,3 +100,7 @@ class FirebaseService {
 }
 
 export default FirebaseService;
+'''
+with open("src/services/firebaseService.ts", "w", encoding="utf-8") as f:
+    f.write(content)
+print("Updated firebaseService.ts")

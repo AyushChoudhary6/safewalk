@@ -1,29 +1,157 @@
-with open('src/screens/HomeScreen.tsx', 'r', encoding='utf-8') as f:
+with open('c:/Users/DELL/OneDrive/Desktop/App/safewalk/src/navigation/RootNavigator.tsx', 'r', encoding='utf-8') as f:
     text = f.read()
 
-drawer_insert = '''
-      <PlaceDrawer 
-        place={selectedPlace} 
-        onClose={() => setSelectedPlace(null)}
-        onDirections={(place) => {
-           if (location) {
-             calculateRoute({
-                latitude: location.latitude + 0.005, 
-                longitude: location.longitude + 0.005 
-             }, routeMode);
-           }
+new_text = """/**
+ * Root Navigator
+ * Top-level navigation orchestration
+ */
+
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React, { useEffect, useState } from 'react';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { ActivityIndicator, View } from 'react-native';
+
+import {
+    LoginScreen,
+    NavigationModeScreen,
+    PremiumScreen,
+    ReportIncidentScreen,
+    EmergencyContactsScreen,
+} from '../screens';
+import { TabNavigator } from './TabNavigator';
+
+export type RootStackParamList = {
+  Auth: undefined;
+  Main: undefined;
+  NavigationMode: { route?: any };
+  ReportIncident: undefined;
+  Premium: undefined;
+  EmergencyContacts: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export const RootNavigator: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animationEnabled: true,
         }}
-      />
-    </SafeAreaView>
-'''
+      >
+        {user ? (
+          <>
+            <Stack.Screen name="Main" component={TabNavigator} />
 
-if '</SafeAreaView>' in text:
-    text = text.replace('</SafeAreaView>', drawer_insert)
+            <Stack.Screen
+              name="NavigationMode"
+              options={{
+                animationEnabled: true,
+                presentation: 'fullScreenModal',
+              }}
+            >
+              {({ route, navigation }) => (
+                <NavigationModeScreen
+                  route={route.params?.route}
+                  onComplete={() => {
+                    navigation.goBack();
+                  }}
+                  onEmergency={() => {
+                    /* Handle emergency */
+                  }}
+                  onCancel={() => {
+                    navigation.goBack();
+                  }}
+                />
+              )}
+            </Stack.Screen>
 
-imports_insert = "import { PlaceDrawer, PlaceData } from '../components/PlaceDrawer';\nimport { RouteInfoCard"
-if "import { RouteInfoCard" in text and "PlaceDrawer" not in text:
-    text = text.replace("import { RouteInfoCard", imports_insert)
+            <Stack.Screen
+              name="ReportIncident"
+              options={{
+                animationEnabled: true,
+                presentation: 'modal',
+              }}
+            >
+              {({ navigation }) => (
+                <ReportIncidentScreen
+                  onSubmit={(incident) => {
+                    navigation.goBack();
+                  }}
+                  onCancel={() => {
+                    navigation.goBack();
+                  }}
+                />
+              )}
+            </Stack.Screen>
 
-with open('src/screens/HomeScreen.tsx', 'w', encoding='utf-8') as f:
-    f.write(text)
-print('Done padding drawer')
+            <Stack.Screen
+              name="Premium"
+              options={{
+                animationEnabled: true,
+                presentation: 'modal',
+              }}
+            >
+              {() => (
+                <PremiumScreen
+                  onSubscribe={() => {
+                    /* Handle subscription */
+                  }}
+                  onCancel={() => {
+                    /* Handle cancel */
+                  }}
+                />
+              )}
+            </Stack.Screen>
+
+            <Stack.Screen
+              name="EmergencyContacts"
+              options={{
+                animationEnabled: true,
+                presentation: 'card',
+              }}
+            >
+              {() => <EmergencyContactsScreen />}
+            </Stack.Screen>
+          </>
+        ) : (
+          <Stack.Screen
+            name="Auth"
+            options={{ animationEnabled: false }}
+          >
+            {() => <LoginScreen />}
+          </Stack.Screen>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+"""
+
+with open('c:/Users/DELL/OneDrive/Desktop/App/safewalk/src/navigation/RootNavigator.tsx', 'w', encoding='utf-8') as f:
+    f.write(new_text)
+
+print("Rewritten successfully")

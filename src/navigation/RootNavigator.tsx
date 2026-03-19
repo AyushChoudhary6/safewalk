@@ -5,7 +5,11 @@
 
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { ActivityIndicator, View } from 'react-native';
+import '../services/firebaseService';
+
 import {
     LoginScreen,
     NavigationModeScreen,
@@ -27,6 +31,27 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -34,24 +59,18 @@ export const RootNavigator: React.FC = () => {
           headerShown: false,
           animationEnabled: true,
         }}
-        initialRouteName="Main"
       >
-        <Stack.Screen name="Main" component={TabNavigator} />
-        
-        <Stack.Screen
-          name="Auth"
-          options={{ animationEnabled: false }}
-        >
-          {() => <LoginScreen />}
-        </Stack.Screen>
+        {user ? (
+          <>
+            <Stack.Screen name="Main" component={TabNavigator} />
 
-        <Stack.Screen
-          name="NavigationMode"
-          options={{
-            animationEnabled: true,
-            presentation: 'fullScreenModal',
-          }}
-        >
+            <Stack.Screen
+              name="NavigationMode"
+              options={{
+                animationEnabled: true,
+                presentation: 'fullScreenModal',
+              }}
+            >
               {({ route, navigation }) => (
                 <NavigationModeScreen
                   route={route.params?.route}
@@ -78,10 +97,7 @@ export const RootNavigator: React.FC = () => {
               {({ navigation }) => (
                 <ReportIncidentScreen
                   onSubmit={(incident) => {
-                    // Report submitted successfully, close modal
                     navigation.goBack();
-                    // The HomeScreen will automatically refresh incidents
-                    // since location updates trigger incident fetches
                   }}
                   onCancel={() => {
                     navigation.goBack();
@@ -109,8 +125,8 @@ export const RootNavigator: React.FC = () => {
               )}
             </Stack.Screen>
 
-            <Stack.Screen 
-              name="EmergencyContacts" 
+            <Stack.Screen
+              name="EmergencyContacts"
               options={{
                 animationEnabled: true,
                 presentation: 'card',
@@ -118,6 +134,15 @@ export const RootNavigator: React.FC = () => {
             >
               {() => <EmergencyContactsScreen />}
             </Stack.Screen>
+          </>
+        ) : (
+          <Stack.Screen
+            name="Auth"
+            options={{ animationEnabled: false }}
+          >
+            {() => <LoginScreen />}
+          </Stack.Screen>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
