@@ -1,3 +1,4 @@
+import FirebaseService from '../services/firebaseService';
 /**
  * ProfileScreen
  * User profile and settings
@@ -8,6 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
+    Alert,
     ScrollView,
     StyleSheet,
     Switch,
@@ -39,6 +41,33 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [notifications, setNotifications] = useState(true);
   const [locationSharing, setLocationSharing] = useState(true);
   const [emergencyAlerts, setEmergencyAlerts] = useState(true);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          onPress: () => {},
+          style: 'cancel',
+        },
+        {
+          text: 'Log Out',
+          onPress: async () => {
+            try {
+              await FirebaseService.logout();
+              // The RootNavigator will automatically redirect to Auth screen
+              // when the auth state changes
+            } catch (error: any) {
+              Alert.alert('Logout Failed', error.message || 'An error occurred during logout');
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -92,6 +121,71 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             color={COLORS.text.tertiary}
           />
         </TouchableOpacity>
+
+        {/* Account Options */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+
+          {/* Profile */}
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingIcon}>
+              <MaterialCommunityIcons name="account-circle-outline" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Profile</Text>
+              <Text style={styles.settingDescription}>Manage your public info</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.text.tertiary} />
+          </TouchableOpacity>
+
+          {/* Timeline */}
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingIcon}>
+              <MaterialCommunityIcons name="clock-time-four-outline" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Timeline</Text>
+              <Text style={styles.settingDescription}>Your past routes and activity</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.text.tertiary} />
+          </TouchableOpacity>
+
+          {/* Location sharing */}
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingIcon}>
+              <MaterialCommunityIcons name="map-marker-account-outline" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Location sharing</Text>
+              <Text style={styles.settingDescription}>Manage who can see your location</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.text.tertiary} />
+          </TouchableOpacity>
+
+          {/* Offline maps */}
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingIcon}>
+              <MaterialCommunityIcons name="cloud-download-outline" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Offline maps</Text>
+              <Text style={styles.settingDescription}>Download maps for offline use</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.text.tertiary} />
+          </TouchableOpacity>
+
+          {/* Your data in maps */}
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingIcon}>
+              <MaterialCommunityIcons name="shield-account-outline" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Your data in maps</Text>
+              <Text style={styles.settingDescription}>Privacy and data controls</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.text.tertiary} />
+          </TouchableOpacity>
+        </View>
 
         {/* Settings Sections */}
         <View style={styles.section}>
@@ -264,7 +358,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         {/* Logout Button */}
         <TouchableOpacity
           style={[styles.logoutButton, SHADOWS.sm]}
-          onPress={onLogout}
+          onPress={handleLogout}
         >
           <MaterialCommunityIcons
             name="logout"

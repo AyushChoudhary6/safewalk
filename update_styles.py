@@ -1,30 +1,24 @@
-with open('src/screens/ReportIncidentScreen.tsx', 'r', encoding='utf-8') as f:
+with open("src/screens/LoginScreen.tsx", "r", encoding="utf-8") as f:
     text = f.read()
 
-styles_to_add = """  coordinatesBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-    gap: SPACING.md,
-  },
-  coordinatesInput: {
-    flex: 1,
-    paddingVertical: SPACING.md,
-    fontSize: TYPOGRAPHY.sizes.sm,
-    color: COLORS.text.primary,
-  },
-"""
+text = text.replace(
+    """<View style={styles.footer}>
+            <Text style={styles.footerText}>{isSignUp ? 'Already have an account? ' : "Don't have an account? "}</Text>
+            <TextButton
+              title={isSignUp ? 'Log in' : 'Sign up for free'}
+              onPress={() => setIsSignUp(!isSignUp)}
+              textStyle={styles.signUpLink}
+            />
+          </View>""",
+    """<View style={styles.footer}>
+            <Text style={styles.footerText}>{isSignUp ? 'Already have an account? ' : "Don't have an account? "}</Text>
+            <TextButton
+              title={isSignUp ? 'Log in' : 'Sign up for free'}
+              onPress={() => { setIsSignUp(!isSignUp); }}
+              textStyle={styles.signUpLink}
+            />
+          </View>"""
+)
 
-if 'coordinatesBox: {' not in text:
-    text = text.replace("  textArea: {", styles_to_add + "  textArea: {")
-
-# also remove SafeWalkMapView from imports since it causes eslint warning
-text = text.replace("PrimaryButton, SafeWalkMapView", "PrimaryButton")
-
-with open('src/screens/ReportIncidentScreen.tsx', 'w', encoding='utf-8') as f:
+with open("src/screens/LoginScreen.tsx", "w", encoding="utf-8") as f:
     f.write(text)
-print("styles added")

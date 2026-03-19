@@ -1,5 +1,5 @@
 import React from 'react';
-import { Marker } from './Map/MapView';
+import { Marker } from './Map';
 import { Incident } from '../data/mockIncidents';
 
 interface Props {

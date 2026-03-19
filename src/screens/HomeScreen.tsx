@@ -2,8 +2,10 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LocationObjectCoords, LocationSubscription } from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Circle, Marker, Polyline } from '../components/Map/MapView';
+import { ActivityIndicator, Alert, FlatList, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, { Circle, Marker, Polyline } from '../components/Map';
+import { SearchBar } from '../components/Map/SearchBar';
 import { IncidentMarker } from '../components/IncidentMarker';
 import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
@@ -112,7 +114,7 @@ export const HomeScreen: React.FC = () => {
         setActiveIncidents(mockIncidents);
       }
     } catch (error) {
-      console.error('Error fetching nearby incidents:', error);
+      console.log('Backend not available, using mock data for nearby incidents (Network Error handled).');
       // Fallback to mock data on error
       setActiveIncidents(mockIncidents);
     }
@@ -234,7 +236,7 @@ export const HomeScreen: React.FC = () => {
             setRouteSegments(riskInfo.routeSegments);
             setRouteRiskInfo(riskInfo);
           } catch (error) {
-            console.error('Error fetching route incidents from API, using mock data:', error);
+            console.log('Backend not available, using mock data for route incidents.');
             // Fallback to mock data
             const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
             const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
@@ -255,7 +257,7 @@ export const HomeScreen: React.FC = () => {
           });
       }
     } catch (error) {
-      console.error('Route calculation crashed: ', error);
+      console.log('Route calculation crashed: ', error);
       Alert.alert('Error', 'Failed to calculate route and find details.');
     } finally {
       setSearching(false);
@@ -400,15 +402,14 @@ export const HomeScreen: React.FC = () => {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
+          <SearchBar
             placeholder="Search destination..."
-            placeholderTextColor="#888"
             value={searchQuery}
             onChangeText={handleTextChange}
             onFocus={() => {
               if (suggestions.length > 0) setShowSuggestions(true);
             }}
+            onClear={() => setSearchQuery('')}
           />
           {searching && (
             <View style={styles.loadingWrapper}>

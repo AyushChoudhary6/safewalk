@@ -1,27 +1,29 @@
 /**
  * LoginScreen
- * User authentication screen
+ * User authentication screen with login and sign-up modes
  */
 
+import React, { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AntDesign, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import {
-    PrimaryButton,
-    TextButton,
+  PrimaryButton,
+  TextButton,
 } from '../components';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
+import FirebaseService from '../services/firebaseService';
 
 interface LoginScreenProps {
   onLogin?: () => void;
@@ -35,23 +37,57 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
-  const handleLogin = async () => {
+  const handleAuthentication = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    if (isSignUp && password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
     setLoading(true);
-    // Placeholder authentication logic
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoading(false);
-    if (onLogin) onLogin();
+    try {
+      if (isSignUp) {
+        await FirebaseService.register(email, password);
+        Alert.alert('Success', 'Account created successfully!');
+        setIsSignUp(false);
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+      } else {
+        await FirebaseService.login(email, password);
+        if (onLogin) onLogin();
+      }
+    } catch (error: any) {
+      Alert.alert(
+        isSignUp ? 'Sign Up Failed' : 'Login Failed',
+        error.message || 'An error occurred during authentication'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    // Placeholder Google login logic
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoading(false);
-    if (onLogin) onLogin();
+    try {
+      // Placeholder Google login logic
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (onLogin) onLogin();
+    } catch (error: any) {
+      Alert.alert('Google Login Failed', error.message || 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -83,8 +119,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 color={COLORS.primary}
               />
             </View>
-            <Text style={styles.title}>Welcome to SafeWalk</Text>
-            <Text style={styles.subtitle}>Login to continue your safe journey</Text>
+            <Text style={styles.title}>
+              {isSignUp ? 'Create an Account' : 'Welcome to SafeWalk'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {isSignUp ? 'Sign up to start your safe journey' : 'Login to continue your safe journey'}
+            </Text>
           </View>
 
           {/* Form Card */}
@@ -140,49 +180,94 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </View>
             </View>
 
-            {/* Forgot Password Link */}
-            <TextButton
-              title="Forgot password?"
-              onPress={() => {}}
-              textStyle={styles.forgotLink}
-            />
+            {/* Confirm Password Field - Only for Sign Up */}
+            {isSignUp && (
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <View style={styles.inputContainer}>
+                  <MaterialCommunityIcons
+                    name="lock-outline"
+                    size={20}
+                    color={COLORS.text.secondary}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor={COLORS.text.tertiary}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                    editable={!loading}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    <MaterialCommunityIcons
+                      name={showConfirmPassword ? 'eye' : 'eye-off'}
+                      size={20}
+                      color={COLORS.text.secondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
-            {/* Login Button */}
+            {/* Forgot Password Link - Only for Login */}
+            {!isSignUp && (
+              <TextButton
+                title="Forgot password?"
+                onPress={() => {}}
+                textStyle={styles.forgotLink}
+              />
+            )}
+
+            {/* Authentication Button */}
             <PrimaryButton
-              title="Continue"
-              onPress={handleLogin}
+              title={isSignUp ? 'Sign Up' : 'Continue'}
+              onPress={handleAuthentication}
               loading={loading}
               style={styles.button}
             />
 
             {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
+            {!isSignUp && (
+              <>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
 
-            {/* Google Login */}
-            <TouchableOpacity
-              style={[styles.googleButton, SHADOWS.sm]}
-              onPress={handleGoogleLogin}
-              disabled={loading}
-            >
-              <AntDesign
-                name="google"
-                size={20}
-                color={COLORS.text.primary}
-              />
-              <Text style={styles.googleButtonText}>Login with Google</Text>
-            </TouchableOpacity>
+                {/* Google Login */}
+                <TouchableOpacity
+                  style={[styles.googleButton, SHADOWS.sm]}
+                  onPress={handleGoogleLogin}
+                  disabled={loading}
+                >
+                  <AntDesign
+                    name="google"
+                    size={20}
+                    color={COLORS.text.primary}
+                  />
+                  <Text style={styles.googleButtonText}>Login with Google</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
-          {/* Sign Up Link */}
+          {/* Toggle Login/Sign Up */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={styles.footerText}>
+              {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+            </Text>
             <TextButton
-              title="Sign up for free"
-              onPress={onSignUp}
+              title={isSignUp ? 'Log in' : 'Sign up for free'}
+              onPress={() => {
+                setIsSignUp(!isSignUp);
+                setEmail('');
+                setPassword('');
+                setConfirmPassword('');
+              }}
               textStyle={styles.signUpLink}
             />
           </View>

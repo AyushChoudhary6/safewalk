@@ -18,7 +18,7 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker } from '../components/Map/MapView';
+import MapView, { Marker } from '../components/Map';
 import { getCurrentLocation } from '../services/locationService';
 import { fetchAddressFromCoordinates } from '../services/mapsService';
 import { apiService } from '../services/apiService';
@@ -123,7 +123,7 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
         throw new Error(response.error || 'Failed to submit report');
       }
     } catch (error: any) {
-      console.error('Error submitting incident:', error);
+      console.log('Error submitting incident:', error);
       Alert.alert(
         'Error',
         error.message || 'Failed to submit report. Please try again.',

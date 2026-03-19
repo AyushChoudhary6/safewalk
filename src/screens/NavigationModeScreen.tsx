@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, Polyline } from '../components/Map/MapView';
+import MapView, { Marker, Polyline } from '../components/Map';
 import {
   DistanceCard,
   InstructionCard,

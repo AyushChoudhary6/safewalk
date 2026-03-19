@@ -1,130 +1,70 @@
-import re
-
-with open('src/screens/ReportIncidentScreen.tsx', 'r', encoding='utf-8') as f:
+with open("src/screens/LoginScreen.tsx", "r", encoding="utf-8") as f:
     text = f.read()
 
-# 1. Imports
 text = text.replace(
-    "import { SafeAreaView } from 'react-native-safe-area-context';",
-    "import { SafeAreaView } from 'react-native-safe-area-context';\nimport MapView, { Marker } from 'react-native-maps';\nimport { getCurrentLocation } from '../services/locationService';\nimport { fetchAddressFromCoordinates } from '../services/mapsService';"
+    "const [loading, setLoading] = useState(false);",
+    "const [loading, setLoading] = useState(false);\n  const [isSignUp, setIsSignUp] = useState(false);"
 )
 
-# Replace hook state and effects
-hook_str = """
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
-"""
-new_hook_str = """
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [location, setLocation] = useState<{latitude: number; longitude: number} | null>(null);
-  const [locationAddress, setLocationAddress] = useState<string>('Locating...');
-
-  React.useEffect(() => {
-    const fetchLoc = async () => {
-      const loc = await getCurrentLocation();
-      if (loc) setLocation({ latitude: loc.latitude, longitude: loc.longitude });
-    };
-    fetchLoc();
-  }, []);
-
-  React.useEffect(() => {
-    if (location) {
-      setLocationAddress('Fetching address...');
-      fetchAddressFromCoordinates(location)
-        .then(addr => setLocationAddress(addr))
-        .catch(() => setLocationAddress(`${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`));
+text = text.replace(
+    "const handleLogin = async () => {",
+    """const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
     }
-  }, [location]);
-"""
-text = text.replace(hook_str.strip(), new_hook_str.strip())
+    setLoading(true);
+    try {
+      if (isSignUp) {
+        await FirebaseService.register(email, password);
+      } else {
+        await FirebaseService.login(email, password);
+      }
+      if (onLogin) onLogin();
+    } catch (error: any) {
+      Alert.alert(isSignUp ? 'Sign Up Failed' : 'Login Failed', error.message || 'An error occurred during authentication');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-# Replace mock region with default region logic
-text = text.replace("""  const mockRegion = {
-    latitude: 37.7749,
-    longitude: -122.4194,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  };""", """  const defaultRegion = {
-    latitude: location?.latitude || 37.7749,
-    longitude: location?.longitude || -122.4194,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  };""")
+  const unusedHandleLogin = async () => {"""
+)
 
-# replace handleSubmit location access
-text = text.replace("location: mockRegion,", "location: location || defaultRegion,")
+# Fix title
+text = text.replace(
+    "<Text style={styles.title}>Welcome to SafeWalk</Text>",
+    "<Text style={styles.title}>{isSignUp ? 'Create an Account' : 'Welcome to SafeWalk'}</Text>"
+)
+text = text.replace(
+    "<Text style={styles.subtitle}>Login to continue your safe journey</Text>",
+    "<Text style={styles.subtitle}>{isSignUp ? 'Sign up to start your safe journey' : 'Login to continue your safe journey'}</Text>"
+)
 
-# Replace Map inside mini map
-map_str = """          {/* Mini Map */}
-        <View style={styles.mapContainer}>
-          <SafeWalkMapView initialRegion={mockRegion} />"""
-new_map_str = """          {/* Interactive Map */}
-        <View style={styles.mapContainer}>
-          <MapView
-            style={StyleSheet.absoluteFillObject}
-            region={defaultRegion}
-            onPress={(e) => setLocation(e.nativeEvent.coordinate)}
-          >
-            {location && (
-              <Marker
-                coordinate={location}
-                draggable
-                onDragEnd={(e) => setLocation(e.nativeEvent.coordinate)}
-              />
-            )}
-          </MapView>"""
-text = text.replace(map_str, new_map_str)
+text = text.replace(
+    """title="Continue\"""",
+    """title={isSignUp ? 'Sign Up' : 'Continue'}"""
+)
 
-# Replace the text inputs to also include coordinates
-coords_input = """
-          {/* Location Coordinates Input */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Selected Location</Text>
-            <View style={[styles.coordinatesBox, SHADOWS.sm]}>
-              <MaterialCommunityIcons name="map-marker" size={20} color={COLORS.primary} />
-              <TextInput
-                style={styles.coordinatesInput}
-                value={
-                  location
-                    ? `${locationAddress} | ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
-                    : 'Locating...'
-                }
-                editable={false}
-                multiline={true}
-              />
-            </View>
-          </View>
+# Footer handling
+text = text.replace(
+    """<View style={styles.footer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <TextButton
+              title="Sign up for free"
+              onPress={onSignUp}
+              textStyle={styles.signUpLink}
+            />
+          </View>""",
+    """<View style={styles.footer}>
+            <Text style={styles.footerText}>{isSignUp ? 'Already have an account? ' : \"Don't have an account? \"}</Text>
+            <TextButton
+              title={isSignUp ? 'Log in' : 'Sign up for free'}
+              onPress={() => setIsSignUp(!isSignUp)}
+              textStyle={styles.signUpLink}
+            />
+          </View>"""
+)
 
-          {/* Description Input */}"""
-text = text.replace("{/* Description Input */}", coords_input)
-
-# Move buttons into scroll view
-buttons_str = """        {/* Action Buttons */}
-        <View style={[styles.actions, SHADOWS.lg]}>
-          <TouchableOpacity
-            style={[styles.cancelButton, SHADOWS.sm]}
-            onPress={onCancel}
-            disabled={loading}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-
-          <PrimaryButton
-            title="Submit Report"
-            onPress={handleSubmit}
-            loading={loading}
-            disabled={!selectedType || loading}
-            style={{ flex: 1 }}
-          />
-        </View>"""
-
-if buttons_str in text:
-    text = text.replace(buttons_str, "")
-    text = text.replace("</ScrollView>", buttons_str + "\n        </ScrollView>")
-
-with open('src/screens/ReportIncidentScreen.tsx', 'w', encoding='utf-8') as f:
+with open("src/screens/LoginScreen.tsx", "w", encoding="utf-8") as f:
     f.write(text)
-print("done")

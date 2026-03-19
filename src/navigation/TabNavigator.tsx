@@ -37,11 +37,14 @@ export type TabParamList = {
       label: 'Report',
       icon: 'flag-outline',
       activeIcon: 'flag',
-    component: ProfileScreen,
-    label: 'Profile',
-    icon: 'account-outline',
-    activeIcon: 'account',
-  },
+    },
+    {
+      name: 'ProfileTab',
+      component: ProfileScreen,
+      label: 'Profile',
+      icon: 'account-outline',
+      activeIcon: 'account',
+    },
 ];
 
 export const TabNavigator = () => {

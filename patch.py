@@ -1,45 +1,52 @@
+with open('c:/Users/DELL/OneDrive/Desktop/App/safewalk/src/navigation/RootNavigator.tsx', 'r', encoding='utf-8') as f:
+    text = f.read()
+
+text = text.replace(
+    "import React from 'react';",
+    "import React, { useEffect, useState } from 'react';\nimport { getAuth, onAuthStateChanged, User } from 'firebase/auth';\nimport { ActivityIndicator, View } from 'react-native';"
+)
+
+text = text.replace(
+    "export const RootNavigator: React.FC = () => {",
+    """export const RootNavigator: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }"""
+)
+
+# find initialRouteName="Main"
 import re
+new_text = re.sub(
+    r'initialRouteName="Main"\s*>\s*<Stack\.Screen name="Main" component=\{TabNavigator\} />\s*<Stack\.Screen\s*name="Auth"(.*?)\{\(\) => <LoginScreen />\}\s*</Stack\.Screen>\s*<Stack\.Screen',
+    r'>\n        {user ? (\n          <>\n            <Stack.Screen name="Main" component={TabNavigator} />\n\n            <Stack.Screen',
+    text,
+    flags=re.DOTALL
+)
 
-with open('src/screens/HomeScreen.tsx', 'r', encoding='utf-8') as f:
-    content = f.read()
-
-replacement = '''showsMyLocationButton={false}
-      >
-        {location && (
-          <>
-            <Marker
-              coordinate={{ latitude: location.latitude + 0.005, longitude: location.longitude + 0.005 }}
-              title="Central Park"
-              pinColor="green"
-              onPress={() => setSelectedPlace({
-                id: '1',
-                name: 'Central Park',
-                address: '123 Park Ave, New York, NY 10022',
-                duration: '15 min',
-                distance: '2.5 km',
-                type: 'Park',
-                photos: ['https://picsum.photos/400/400?random=4', 'https://picsum.photos/200/200?random=5', 'https://picsum.photos/200/200?random=6']
-              })}
-            />
-            <Marker
-              coordinate={{ latitude: location.latitude - 0.005, longitude: location.longitude - 0.005 }}
-              title="City Coffee"
-              pinColor="orange"
-              onPress={() => setSelectedPlace({
-                id: '2',
-                name: 'City Coffee',
-                address: '456 Cafe St, New York, NY 10021',
-                duration: '5 min',
-                distance: '0.8 km',
-                type: 'Cafe',
-                photos: ['https://picsum.photos/400/400?random=1', 'https://picsum.photos/200/200?random=2', 'https://picsum.photos/200/200?random=3']
-              })}
-            />
-          </>
-        )}'''
-
-new_content = re.sub(r'showsMyLocationButton=\{false\}\s*>', replacement, content)
-
-with open('src/screens/HomeScreen.tsx', 'w', encoding='utf-8') as f:
-    f.write(new_content)
-    print('Done!')
+if new_text != text:
+    new_text = new_text.replace(
+        """</Stack.Screen>\n      </Stack.Navigator>""",
+        """</Stack.Screen>\n          </>\n        ) : (\n          <Stack.Screen\n            name="Auth"\n            options={{ animationEnabled: false }}\n          >\n            {() => <LoginScreen />}\n          </Stack.Screen>\n        )}\n      </Stack.Navigator>"""
+    )
+    with open('c:/Users/DELL/OneDrive/Desktop/App/safewalk/src/navigation/RootNavigator.tsx', 'w', encoding='utf-8') as f:
+        f.write(new_text)
+    print("Patched successfully")
+else:
+    print("Could not match the replacement string")
