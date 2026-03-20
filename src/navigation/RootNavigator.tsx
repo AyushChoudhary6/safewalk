@@ -5,17 +5,17 @@
 
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { ActivityIndicator, View } from 'react-native';
-import '../services/firebaseService';
+import { auth } from '../services/firebaseService';
 
 import {
+    EmergencyContactsScreen,
     LoginScreen,
     NavigationModeScreen,
     PremiumScreen,
     ReportIncidentScreen,
-    EmergencyContactsScreen,
 } from '../screens';
 import { TabNavigator } from './TabNavigator';
 
@@ -35,7 +35,6 @@ export const RootNavigator: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);

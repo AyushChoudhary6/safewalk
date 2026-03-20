@@ -130,10 +130,13 @@ export const calculateRouteRisk = (
     }
   }
 
-  // push last segment
-  if (currentSegment.length > 0) {
+  // push last segment if it has enough points to form a line
+  if (currentSegment.length > 1) {
     segments.push({ coordinates: currentSegment, isDangerous: currentlyDangerous });
   }
 
-  return { riskScore, riskLevel, incidentsOnRoute, routeSegments: segments };
+  // Filter out any segments that somehow ended up with only 1 point
+  const validSegments = segments.filter(seg => seg.coordinates.length > 1);
+
+  return { riskScore, riskLevel, incidentsOnRoute, routeSegments: validSegments };
 };

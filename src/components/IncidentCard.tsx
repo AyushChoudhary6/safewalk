@@ -18,16 +18,20 @@ export const IncidentCard: React.FC<Props> = ({ incident, onPress }) => {
     }
   };
 
+  const displayType = incident?.type ? incident.type.replace('_', ' ') : 'UNKNOWN';
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.indicator, { backgroundColor: getColor(incident.type) }]} />
+      <View style={[styles.indicator, { backgroundColor: getColor(incident?.type) }]} />
       <View style={styles.content}>
-        <Text style={[styles.incidentType, { color: getColor(incident.type) }]}>
-          {incident.type.replace('_', ' ')}
+        <Text style={[styles.incidentType, { color: getColor(incident?.type) }]}>
+          {displayType}
         </Text>
-        <Text style={styles.description}>
-          {incident.description}
-        </Text>
+        {!!incident?.description && (
+          <Text style={styles.description}>
+            {incident.description}
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );

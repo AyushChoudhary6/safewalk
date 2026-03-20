@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosInstance } from 'axios';
+import { createIncident, fetchIncidents } from './incidents';
 
 // Determine API base URL based on platform
 const getApiBaseUrl = () => {
@@ -116,37 +117,47 @@ class ApiService {
     description?: string,
     isAnonymous?: boolean
   ) {
-    const payload = {
-      type: type.toUpperCase(),
-      latitude,
-      longitude,
-      severity: severity || 3,
-      description,
-      isAnonymous: isAnonymous ?? true,
-    };
-    
-    console.log('📤 Sending incident report:', {
-      url: `${this.api.defaults.baseURL}/incidents`,
-      payload,
-    });
-    
-    const response = await this.api.post('/incidents', payload);
-    console.log('✅ Incident response:', response.data);
-    return response.data;
+    try {
+      const payload = {
+        type: type.toUpperCase(),
+        latitude,
+        longitude,
+        severity: severity || 3,
+        description: description || '',
+      };
+      
+      console.log('📤 Sending incident report to Supabase:', payload);
+      const data = await createIncident(payload);
+      console.log('✅ Incident response:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('Failed to report incident via Supabase', error);
+      throw error;
+    }
   }
 
   async getNearbyIncidents(latitude: number, longitude: number, radius: number = 500) {
-    const response = await this.api.get('/incidents/nearby', {
-      params: { latitude, longitude, radius },
-    });
-    return response.data;
+    try {
+      console.log('Fetching nearby incidents from Supabase...');
+      const data = await fetchIncidents();
+      
+      // Optional: Client-side filtering by distance could go here.
+      // For now, we return all of them to make sure it renders on the map.
+      return { success: true, data };
+    } catch (error) {
+      console.error('Failed to fetch nearby incidents', error);
+      throw error;
+    }
   }
 
   async getRecentIncidents(limit: number = 50) {
-    const response = await this.api.get('/incidents/recent', {
-      params: { limit },
-    });
-    return response.data;
+    try {
+      const data = await fetchIncidents();
+      return { success: true, data: data.slice(0, limit) };
+    } catch (error) {
+      console.error('Failed to fetch recent incidents', error);
+      throw error;
+    }
   }
 
   async getIncidentById(id: string) {

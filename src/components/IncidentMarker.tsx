@@ -18,14 +18,16 @@ export const IncidentMarker: React.FC<Props> = ({ incident, onPress }) => {
     }
   };
 
+  const markerTitle = incident.type ? incident.type.replace('_', ' ') : 'Unknown';
+  
   return (
     <Marker
       coordinate={{
-        latitude: incident.latitude,
-        longitude: incident.longitude
+        latitude: Number(incident.latitude) || 0,
+        longitude: Number(incident.longitude) || 0
       }}
-      title={incident.type}
-      description={incident.description}
+      title={markerTitle}
+      {...(incident.description ? { description: String(incident.description) } : {})}
       pinColor={getMarkerColor(incident.type)}
       onPress={onPress}
     />

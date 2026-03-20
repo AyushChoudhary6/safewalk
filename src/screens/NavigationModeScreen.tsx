@@ -227,7 +227,7 @@ export const NavigationModeScreen: React.FC<NavigationModeScreenProps> = ({
         }}
       >
         {/* Completed Route (Faded) */}
-        {pastRouteCoords.length > 1 && (
+        {pastRouteCoords.length > 1 ? (
           <Polyline
             coordinates={pastRouteCoords}
             strokeWidth={6}
@@ -235,10 +235,10 @@ export const NavigationModeScreen: React.FC<NavigationModeScreenProps> = ({
             lineCap="round"
             lineJoin="round"
           />
-        )}
+        ) : null}
 
         {/* Active Route */}
-        {activeRouteCoords.length > 1 && (
+        {activeRouteCoords.length > 1 ? (
           <Polyline
             coordinates={activeRouteCoords}
             strokeWidth={6}
@@ -246,7 +246,7 @@ export const NavigationModeScreen: React.FC<NavigationModeScreenProps> = ({
             lineCap="round"
             lineJoin="round"
           />
-        )}
+        ) : null}
 
         {/* User Marker (Rotated by heading) */}
         {currentLocation && (

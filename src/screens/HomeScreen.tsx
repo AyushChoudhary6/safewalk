@@ -2,18 +2,18 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LocationObjectCoords, LocationSubscription } from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { IncidentMarker } from '../components/IncidentMarker';
 import MapView, { Circle, Marker, Polyline } from '../components/Map';
 import { SearchBar } from '../components/Map/SearchBar';
-import { IncidentMarker } from '../components/IncidentMarker';
 import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
 import { Incident, mockIncidents } from '../data/mockIncidents';
 import { RootStackParamList } from '../navigation/RootNavigator';
+import { apiService } from '../services/apiService';
 import { getCurrentLocation, requestLocationPermissions, startLocationUpdates } from '../services/locationService';
 import { fetchLocationSuggestions, fetchRoute, LocationSuggestion, RouteProfile } from '../services/mapsService';
-import { apiService } from '../services/apiService';
 import { calculateRouteRisk, detectIncidentsOnRoute, RouteRiskCalculation, RouteSegment } from '../utils/routeIncidentDetector';
 
 export const HomeScreen: React.FC = () => {
@@ -95,16 +95,16 @@ export const HomeScreen: React.FC = () => {
       if (response.success && response.data) {
         // Transform API response to match Incident interface
         const incidents: Incident[] = response.data.map((incident: any) => ({
-          id: incident.id,
-          type: incident.type,
-          latitude: incident.latitude,
-          longitude: incident.longitude,
-          severity: incident.severity || 3,
-          timestamp: incident.createdAt,
-          verified: incident.verificationCount > 0,
-          verifiedCount: incident.verificationCount || 0,
+          id: incident.id || Math.random().toString(),
+          type: incident.type || 'UNKNOWN',
+          latitude: Number(incident.latitude) || 0,
+          longitude: Number(incident.longitude) || 0,
+          severity: Number(incident.severity) || 3,
+          timestamp: incident.created_at || new Date().toISOString(),
+          verified: false,
+          verifiedCount: 0,
           description: incident.description || '',
-          isAnonymous: incident.isAnonymous ?? true,
+          isAnonymous: true,
         }));
         
         setActiveIncidents(incidents);
@@ -114,7 +114,7 @@ export const HomeScreen: React.FC = () => {
         setActiveIncidents(mockIncidents);
       }
     } catch (error) {
-      console.log('Backend not available, using mock data for nearby incidents (Network Error handled).');
+      console.log('Backend not available, using mock data for nearby incidents (Network Error handled).', error);
       // Fallback to mock data on error
       setActiveIncidents(mockIncidents);
     }
@@ -212,16 +212,16 @@ export const HomeScreen: React.FC = () => {
             
             if (incidentsResponse.success && incidentsResponse.data) {
               routeIncidents = incidentsResponse.data.map((incident: any) => ({
-                id: incident.id,
-                type: incident.type,
-                latitude: incident.latitude,
-                longitude: incident.longitude,
-                severity: incident.severity || 3,
-                timestamp: incident.createdAt,
-                verified: incident.verificationCount > 0,
-                verifiedCount: incident.verificationCount || 0,
+                id: incident.id || Math.random().toString(),
+                type: incident.type || 'UNKNOWN',
+                latitude: Number(incident.latitude) || 0,
+                longitude: Number(incident.longitude) || 0,
+                severity: Number(incident.severity) || 3,
+                timestamp: incident.created_at || new Date().toISOString(),
+                verified: false,
+                verifiedCount: 0,
                 description: incident.description || '',
-                isAnonymous: incident.isAnonymous ?? true,
+                isAnonymous: true,
               }));
             } else {
               // Fallback to mock data if API fails
@@ -229,20 +229,22 @@ export const HomeScreen: React.FC = () => {
             }
 
             // Detect which incidents are actually on the route
-            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, routeIncidents, 200);
+            // Ensure routeIncidents is a safe array
+            const safeIncidents = Array.isArray(routeIncidents) ? routeIncidents : mockIncidents;
+            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, safeIncidents, 200);
             const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
             
-            setActiveIncidents(riskInfo.incidentsOnRoute);
-            setRouteSegments(riskInfo.routeSegments);
+            setActiveIncidents(riskInfo.incidentsOnRoute || []);
+            setRouteSegments(riskInfo.routeSegments || []);
             setRouteRiskInfo(riskInfo);
           } catch (error) {
-            console.log('Backend not available, using mock data for route incidents.');
+            console.log('Backend not available, using mock data for route incidents.', error);
             // Fallback to mock data
             const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
             const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
             
-            setActiveIncidents(riskInfo.incidentsOnRoute);
-            setRouteSegments(riskInfo.routeSegments);
+            setActiveIncidents(riskInfo.incidentsOnRoute || []);
+            setRouteSegments(riskInfo.routeSegments || []);
             setRouteRiskInfo(riskInfo);
           }
 
@@ -365,28 +367,33 @@ export const HomeScreen: React.FC = () => {
         {/* Route rendering by Segments for risk highlighting */}
         {routeSegments.length > 0 ? (
           routeSegments.map((segment, index) => (
-            <Polyline
-              key={`segment-${index}`}
-              coordinates={segment.coordinates}
-              strokeWidth={5}
-              strokeColor={segment.isDangerous ? "#EF4444" : "#2196F3"} 
-            />
+            segment.coordinates && segment.coordinates.length > 1 ? (
+              <Polyline
+                key={`segment-${index}`}
+                coordinates={segment.coordinates}
+                strokeWidth={5}
+                strokeColor={segment.isDangerous ? "#EF4444" : "#2196F3"} 
+              />
+            ) : null
           ))
         ) : (
-          routeCoordinates.length > 0 && (
+          routeCoordinates.length > 1 ? (
             <Polyline
               coordinates={routeCoordinates}
               strokeWidth={5}
               strokeColor="#2196F3" 
             />
-          )
+          ) : null
         )}
 
         {/* Detected Crime Incidents */}
-        {(activeIncidents.length > 0 ? activeIncidents : mockIncidents).map((incident) => (
-          <React.Fragment key={`incident-${incident.id}`}>
+        {((Array.isArray(activeIncidents) && activeIncidents.length > 0) ? activeIncidents : mockIncidents).map((incident) => (
+          <React.Fragment key={`incident-${incident.id || Math.random()}`}>
             <Circle
-              center={{ latitude: incident.latitude, longitude: incident.longitude }}
+              center={{ 
+                latitude: Number(incident.latitude) || 0, 
+                longitude: Number(incident.longitude) || 0 
+              }}
               radius={200}
               fillColor="rgba(239, 68, 68, 0.15)"
               strokeColor="rgba(239, 68, 68, 0.5)"
@@ -476,39 +483,36 @@ export const HomeScreen: React.FC = () => {
       </View>
     
       
-      {!routeParams && (
-          <PlaceDrawer
-            place={selectedPlace}
-            onClose={() => setSelectedPlace(null)}
-            onDirections={(place) => {
-              if (location) {
-                calculateRoute({
-                  latitude: location.latitude + 0.005,
-                  longitude: location.longitude + 0.005
-                }, routeMode);
-              }
-            }}
-          />
-        )}
-        {routeParams && (
-          <RouteDrawer
-            distance={routeParams.distance}
-            duration={routeParams.duration}
-            incidents={activeIncidents}
-            isVisible={!!routeParams}
-            onIncidentPress={(incident) => {
-              if (mapRef.current) {
-                mapRef.current.animateCamera({
-                  center: {
-                    latitude: incident.latitude,
-                    longitude: incident.longitude,
-                  },
-                  zoom: 17,
-                }, { duration: 1000 });
-              }
-            }}
-          />
-        )}
+      <PlaceDrawer
+        place={selectedPlace}
+        onClose={() => setSelectedPlace(null)}
+        isVisible={!routeParams && !!selectedPlace}
+        onDirections={(place: any) => {
+          if (location) {
+            calculateRoute({
+              latitude: location.latitude + 0.005,
+              longitude: location.longitude + 0.005
+            }, routeMode);
+          }
+        }}
+      />
+      <RouteDrawer
+        distance={routeParams?.distance || 0}
+        duration={routeParams?.duration || 0}
+        incidents={activeIncidents}
+        isVisible={!!routeParams}
+        onIncidentPress={(incident: any) => {
+          if (mapRef.current) {
+            mapRef.current.animateCamera({
+              center: {
+                latitude: Number(incident.latitude) || 0,
+                longitude: Number(incident.longitude) || 0,
+              },
+              zoom: 17,
+            }, { duration: 1000 });
+          }
+        }}
+      />
       </SafeAreaView>
 
 
