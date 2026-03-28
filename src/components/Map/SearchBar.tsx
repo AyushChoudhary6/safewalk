@@ -1,13 +1,13 @@
 /**
  * SearchBar Component
- * Reusable search input component
+ * Google Maps-inspired search input component with smooth interactions
  */
 
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { TabParamList } from '../../navigation/TabNavigator';
-import React from 'react';
+import React, { useRef } from 'react';
 import {
     StyleSheet,
     TextInput,
@@ -16,9 +16,10 @@ import {
     View,
     ViewStyle,
     Image,
-    Text
+    Text,
+    Animated,
 } from 'react-native';
-import { BORDER_RADIUS, COLORS, SPACING, TYPOGRAPHY } from '../../theme';
+import { ANIMATION_TIMING, BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../theme';
 
 interface SearchBarProps {
   placeholder: string;
@@ -42,43 +43,103 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   editable = true,
 }) => {
   const navigation = useNavigation<BottomTabNavigationProp<TabParamList>>();
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const shadowAnim = useRef(new Animated.Value(0)).current;
+
+  const handleFocus = () => {
+    // Expand SearchBar on focus with smooth animation
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 1.02,
+        duration: ANIMATION_TIMING.sm,
+        useNativeDriver: false,
+      }),
+      Animated.timing(shadowAnim, {
+        toValue: 1,
+        duration: ANIMATION_TIMING.sm,
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    onFocus?.();
+  };
+
+  const handleBlur = () => {
+    // Shrink SearchBar on blur
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: ANIMATION_TIMING.sm,
+        useNativeDriver: false,
+      }),
+      Animated.timing(shadowAnim, {
+        toValue: 0,
+        duration: ANIMATION_TIMING.sm,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  const shadowOpacity = shadowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SHADOWS.sm.shadowOpacity as number, SHADOWS.lg.shadowOpacity as number],
+  });
+
+  const containerScale = {
+    transform: [{ scale: scaleAnim }],
+  };
+
+  const containerShadow = {
+    shadowOpacity,
+  };
 
   return (
-    <View style={[styles.container, style]}>
-      <Ionicons
-        name="search"
-        size={18}
-        color={COLORS.text.secondary}
-        style={styles.searchIcon}
-      />
+    <Animated.View style={[styles.container, style, containerScale, containerShadow, SHADOWS.sm]}>
+      <View style={styles.contentContainer}>
+        <Ionicons
+          name="search"
+          size={18}
+          color={COLORS.text.secondary}
+          style={styles.searchIcon}
+        />
 
-      <TextInput
-        style={[styles.input, inputStyle]}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.text.tertiary}
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={onFocus}
-        editable={editable}
-        selectionColor={COLORS.primary}
-      />
+        <TextInput
+          style={[styles.input, inputStyle]}
+          placeholder={placeholder}
+          placeholderTextColor={COLORS.text.tertiary}
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          editable={editable}
+          selectionColor={COLORS.accent}
+        />
 
-      {value.length > 0 && onClear && (
-        <TouchableOpacity onPress={onClear} style={styles.clearButton}>
-          <MaterialCommunityIcons
-            name="close-circle"
-            size={18}
-            color={COLORS.text.secondary}
-          />
-        </TouchableOpacity>
-      )}
+        {value.length > 0 && onClear && (
+          <TouchableOpacity
+            onPress={onClear}
+            style={styles.clearButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialCommunityIcons
+              name="close-circle"
+              size={18}
+              color={COLORS.text.secondary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
 
-      <TouchableOpacity onPress={() => navigation.navigate('ProfileTab')} style={styles.profileButton}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('ProfileTab')}
+        style={styles.profileButton}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
         <View style={styles.profileAvatarContainer}>
           <Text style={styles.profileAvatarText}>👤</Text>
         </View>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -87,22 +148,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.full,
+    borderRadius: BORDER_RADIUS.lg,
     paddingHorizontal: SPACING.base,
-    borderWidth: 1,
+    paddingVertical: SPACING.sm,
+    borderWidth: 0.5,
     borderColor: COLORS.border,
+  },
+  contentContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   searchIcon: {
     marginRight: SPACING.sm,
   },
   input: {
     flex: 1,
-    paddingVertical: SPACING.base,
+    paddingVertical: SPACING.sm,
     fontSize: TYPOGRAPHY.sizes.base,
     color: COLORS.text.primary,
   },
   clearButton: {
-    padding: SPACING.sm,
+    padding: SPACING.xs,
+    marginRight: SPACING.xs,
   },
   profileButton: {
     marginLeft: SPACING.sm,
@@ -110,16 +178,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   profileAvatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary + '20', // light primary
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
+    ...SHADOWS.sm,
   },
   profileAvatarText: {
-    fontSize: 16,
+    fontSize: 18,
   },
 });

@@ -27,8 +27,14 @@ export default function MapScreen() {
     const unsubscribe = subscribeToIncidents((payload) => {
       if (payload.eventType === 'INSERT') {
         const newIncident = payload.new as Incident;
-        // Prepend the new incident to the list to reflect updates immediately
-        setIncidents((prevIncidents) => [newIncident, ...prevIncidents]);
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const incidentDate = newIncident.created_at ? new Date(newIncident.created_at) : new Date();
+        
+        if (incidentDate >= oneWeekAgo) {
+          // Prepend the new incident to the list to reflect updates immediately
+          setIncidents((prevIncidents) => [newIncident, ...prevIncidents]);
+        }
       } else if (payload.eventType === 'DELETE') {
         setIncidents((prev) => prev.filter(item => item.id !== payload.old.id));
       } else {
@@ -47,7 +53,17 @@ export default function MapScreen() {
     try {
       setLoading(true);
       const data = await fetchIncidents();
-      setIncidents(data);
+      
+      // Filter out incidents older than 1 week
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const filteredData = data.filter(incident => {
+        if (!incident.created_at) return true;
+        const incidentDate = new Date(incident.created_at);
+        return incidentDate >= oneWeekAgo;
+      });
+      
+      setIncidents(filteredData);
     } catch (error) {
       console.error('Screen Error: Failed to load incidents', error);
       Alert.alert('Error', 'Could not load community incidents.');
@@ -83,11 +99,16 @@ export default function MapScreen() {
     // Format timestamp nicely
     const dateStr = item.created_at ? new Date(item.created_at).toLocaleString() : 'Just now';
     
+    let severityLabel = 'Yellow Alert';
+    let severityColor = '#EAB308';
+    if (item.severity >= 5) { severityLabel = 'High Alert'; severityColor = 'red'; }
+    else if (item.severity >= 3) { severityLabel = 'Orange Alert'; severityColor = 'orange'; }
+
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.type}>{item.type}</Text>
-          <Text style={styles.severityBadge}>Severity: {item.severity}</Text>
+          <Text style={[styles.severityBadge, { color: severityColor, borderColor: severityColor }]}>{severityLabel}</Text>
         </View>
         <Text style={styles.desc}>{item.description}</Text>
         <View style={styles.metaData}>

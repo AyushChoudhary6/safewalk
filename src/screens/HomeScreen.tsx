@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IncidentMarker } from '../components/IncidentMarker';
 import MapView, { Circle, Marker, Polyline } from '../components/Map';
 import { SearchBar } from '../components/Map/SearchBar';
+import { useBackendSOS } from '../hooks/useBackendSOS';
 import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
 import { Incident, mockIncidents } from '../data/mockIncidents';
@@ -27,6 +28,9 @@ export const HomeScreen: React.FC = () => {
   const [routeParams, setRouteParams] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+
+  // SOS state from backend/twilio service
+  const { isCountingDown, countdown, isSOSActive, statusMsg, startSOS, cancelSOS } = useBackendSOS('Riya', '');
   const [routeMode, setRouteMode] = useState<RouteProfile>('driving-car');
   
   // Incident detection state
@@ -93,8 +97,16 @@ export const HomeScreen: React.FC = () => {
       );
       
       if (response.success && response.data) {
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
         // Transform API response to match Incident interface
-        const incidents: Incident[] = response.data.map((incident: any) => ({
+        const incidents: Incident[] = response.data
+          .filter((incident: any) => {
+            const incidentDate = new Date(incident.created_at || new Date());
+            return incidentDate >= oneWeekAgo;
+          })
+          .map((incident: any) => ({
           id: incident.id || Math.random().toString(),
           type: incident.type || 'UNKNOWN',
           latitude: Number(incident.latitude) || 0,
@@ -230,7 +242,45 @@ export const HomeScreen: React.FC = () => {
 
             // Detect which incidents are actually on the route
             // Ensure routeIncidents is a safe array
-            const safeIncidents = Array.isArray(routeIncidents) ? routeIncidents : mockIncidents;
+            let safeIncidents = Array.isArray(routeIncidents) ? routeIncidents : mockIncidents;
+
+            // --- GENERATE RANDOM INCIDENTS ALONG THE ROUTE ---
+            const randomIncidentsCount = Math.floor(Math.random() * 5) + 3; // 3 to 7 incidents
+            const incidentTypes = ['THEFT', 'HARASSMENT', 'POOR_LIGHTING', 'ASSAULT', 'SUSPICIOUS_ACTIVITY'];
+            const descriptions = [
+              "Suspicious person seen loitering",
+              "Reported theft from bag",
+              "Group of people harassing passersby",
+              "Street light broken, completely dark",
+              "Physical altercation reported",
+              "Someone following closely",
+              "Chain snatching attempt"
+            ];
+            
+            for(let i = 0; i < randomIncidentsCount; i++) {
+               const randIndex = Math.floor(Math.random() * routeData.coordinates.length);
+               const pt = routeData.coordinates[randIndex];
+               const jitteredLat = pt.latitude + (Math.random() - 0.5) * 0.002;
+               const jitteredLng = pt.longitude + (Math.random() - 0.5) * 0.002;
+               
+               const daysAgo = Math.floor(Math.random() * 7);
+               const date = new Date();
+               date.setDate(date.getDate() - daysAgo);
+               
+               safeIncidents.push({
+                 id: `rand_${Math.random()}`,
+                 type: incidentTypes[Math.floor(Math.random() * incidentTypes.length)] as any,
+                 latitude: jitteredLat,
+                 longitude: jitteredLng,
+                 severity: Math.floor(Math.random() * 5) + 1, // 1 to 5
+                 timestamp: date.toISOString(),
+                 description: descriptions[Math.floor(Math.random() * descriptions.length)] + " recently.",
+                 verified: false,
+                 verifiedCount: 0,
+                 isAnonymous: true
+               } as Incident);
+            }
+            
             const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, safeIncidents, 200);
             const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
             
@@ -240,7 +290,48 @@ export const HomeScreen: React.FC = () => {
           } catch (error) {
             console.log('Backend not available, using mock data for route incidents.', error);
             // Fallback to mock data
-            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, mockIncidents, 200);
+            let fallbackIncidents = [...mockIncidents];
+            
+            // --- GENERATE RANDOM INCIDENTS ALONG THE ROUTE ---
+            const randomIncidentsCount = Math.floor(Math.random() * 5) + 3; // 3 to 7 incidents
+            const incidentTypes = ['THEFT', 'HARASSMENT', 'POOR_LIGHTING', 'ASSAULT', 'SUSPICIOUS_ACTIVITY'];
+            const descriptions = [
+              "Suspicious person seen loitering",
+              "Reported theft from bag",
+              "Group of people harassing passersby",
+              "Street light broken, completely dark",
+              "Physical altercation reported",
+              "Someone following closely",
+              "Chain snatching attempt"
+            ];
+            
+            if (routeData.coordinates && routeData.coordinates.length > 0) {
+              for(let i = 0; i < randomIncidentsCount; i++) {
+                 const randIndex = Math.floor(Math.random() * routeData.coordinates.length);
+                 const pt = routeData.coordinates[randIndex];
+                 const jitteredLat = pt.latitude + (Math.random() - 0.5) * 0.002;
+                 const jitteredLng = pt.longitude + (Math.random() - 0.5) * 0.002;
+                 
+                 const daysAgo = Math.floor(Math.random() * 7);
+                 const date = new Date();
+                 date.setDate(date.getDate() - daysAgo);
+                 
+                 fallbackIncidents.push({
+                   id: `rand_${Math.random()}`,
+                   type: incidentTypes[Math.floor(Math.random() * incidentTypes.length)] as any,
+                   latitude: jitteredLat,
+                   longitude: jitteredLng,
+                   severity: Math.floor(Math.random() * 5) + 1,
+                   timestamp: date.toISOString(),
+                   description: descriptions[Math.floor(Math.random() * descriptions.length)] + " recently.",
+                   verified: false,
+                   verifiedCount: 0,
+                   isAnonymous: true
+                 } as Incident);
+              }
+            }
+            
+            const nearbyIncidents = detectIncidentsOnRoute(routeData.coordinates, fallbackIncidents, 200);
             const riskInfo = calculateRouteRisk(routeData.coordinates, nearbyIncidents, 200);
             
             setActiveIncidents(riskInfo.incidentsOnRoute || []);
@@ -309,6 +400,11 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {(isSOSActive || isCountingDown) && (
+        <View style={{ position: 'absolute', top: 50, left: 10, right: 10, backgroundColor: 'rgba(255, 0, 0, 0.9)', padding: 15, borderRadius: 10, zIndex: 1000, elevation: 1000 }}>
+          <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>{statusMsg}</Text>
+        </View>
+      )}
       <MapView
           ref={mapRef}
           style={styles.map}
@@ -477,8 +573,20 @@ export const HomeScreen: React.FC = () => {
           <Text style={styles.fabIcon}>📍</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.fab, styles.sosFab]} onPress={() => Alert.alert('SOS', 'Emergency services would be contacted!')}>
-          <Text style={styles.sosText}>SOS</Text>
+        <TouchableOpacity 
+          style={[styles.fab, styles.sosFab, (isSOSActive || isCountingDown) && { backgroundColor: '#8B0000' }]} 
+          onPress={() => {
+            if (isSOSActive || isCountingDown) {
+              Alert.alert('Cancel SOS?', 'Are you sure you want to stop the emergency alert?', [
+                { text: 'No' }, 
+                { text: 'Yes', onPress: cancelSOS }
+              ]);
+            } else {
+              startSOS();
+            }
+          }}
+        >
+          <Text style={styles.sosText}>{isCountingDown ? countdown : isSOSActive ? 'STOP' : 'SOS'}</Text>
         </TouchableOpacity>
       </View>
     

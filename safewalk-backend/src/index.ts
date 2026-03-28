@@ -8,6 +8,7 @@ import { AppDataSource } from './config/database';
 import activityRoutes from './routes/activity';
 import authRoutes from './routes/auth';
 import emergencyRoutes from './routes/emergency';
+import sosRoutes from './routes/sosRoutes';
 import escortRoutes from './routes/escorts';
 import incidentRoutes from './routes/incidents';
 import routeRoutes from './routes/routes';
@@ -55,6 +56,7 @@ app.use('/api', incidentRoutes);
 app.use('/api', routeRoutes);
 app.use('/api', escortRoutes);
 app.use('/api', emergencyRoutes);
+app.use('/api/sos', sosRoutes);
 app.use('/api', activityRoutes);
 
 // Error handling
