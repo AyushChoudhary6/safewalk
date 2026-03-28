@@ -1,12 +1,12 @@
 /**
  * RouteInfoCard Component
- * Displays dynamic route information similar to Google Maps
+ * Professional route information display inspired by Google Maps
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, SHADOWS, SPACING } from '../theme';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ANIMATION_TIMING, BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
 
 interface RouteOption {
   duration: number;
@@ -29,13 +29,13 @@ interface RouteInfoCardProps {
 const getTrafficColor = (level?: string) => {
   switch (level) {
     case 'low':
-      return '#22C55E'; // Green
+      return COLORS.riskLevel.low;
     case 'moderate':
-      return '#F59E0B'; // Orange
+      return COLORS.riskLevel.moderate;
     case 'heavy':
-      return '#EF4444'; // Red
+      return COLORS.riskLevel.high;
     default:
-      return '#6B7280'; // Gray
+      return COLORS.text.secondary;
   }
 };
 
@@ -90,6 +90,8 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
 }) => {
   const [arrivalTime, setArrivalTime] = useState<string>('');
   const [selectedTab, setSelectedTab] = useState<'drive' | 'details'>('drive');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
   useEffect(() => {
     // Calculate arrival time
@@ -100,25 +102,51 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const displayHours = hours % 12 || 12;
     setArrivalTime(`${displayHours}:${minutes} ${ampm}`);
+
+    // Animate in
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: ANIMATION_TIMING.lg,
+        useNativeDriver: false,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 50,
+        useNativeDriver: false,
+      }),
+    ]).start();
   }, [duration]);
 
   const minutes = Math.ceil(duration / 60);
   const trafficColor = getTrafficColor(trafficLevel);
 
-  // Generate alternative routes with slight time variations
+  // Generate alternative routes
   const routes: RouteOption[] = [
     { duration, distance, trafficLevel, isRecommended: true },
     { duration: duration + 180, distance: distance + 0.5, trafficLevel: 'low' },
     { duration: duration + 300, distance: distance + 1.2, trafficLevel: 'low' },
   ];
 
+  const containerStyle = {
+    opacity: fadeAnim,
+    transform: [{ scale: scaleAnim }],
+  };
+
   return (
-    <View style={[styles.container, SHADOWS.lg]}>
+    <Animated.View style={[styles.container, SHADOWS.xl, containerStyle]}>
+      {/* Handle Indicator */}
+      <View style={styles.handleContainer}>
+        <View style={styles.handle} />
+      </View>
+
       {/* Main Route Summary - Always visible */}
       <View style={styles.summarySection}>
         <View style={styles.mainContent}>
           <View style={styles.timeSection}>
-            <Text style={styles.mainTime}>{minutes} min</Text>
+            <Text style={styles.mainTime}>{minutes}</Text>
+            <Text style={styles.mainUnit}>min</Text>
             <Text style={styles.arrivalTime}>Arrive by {arrivalTime}</Text>
           </View>
 
@@ -133,7 +161,7 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
         {/* Recommended Badge */}
         {trafficLevel === 'low' && (
           <View style={styles.recommendedBadge}>
-            <MaterialCommunityIcons name="check-circle" size={16} color="#22C55E" />
+            <MaterialCommunityIcons name="check-circle" size={14} color={COLORS.safe} />
             <Text style={styles.recommendedText}>Recommended</Text>
           </View>
         )}
@@ -148,7 +176,7 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
           <MaterialCommunityIcons
             name={getModeIcon(mode)}
             size={18}
-            color={selectedTab === 'drive' ? COLORS.primary : COLORS.text.secondary}
+            color={selectedTab === 'drive' ? COLORS.accent : COLORS.text.secondary}
           />
           <Text style={[styles.tabText, selectedTab === 'drive' && styles.activeTabText]}>
             {getModeLabel(mode)}
@@ -162,7 +190,7 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
           <MaterialCommunityIcons
             name="information-outline"
             size={18}
-            color={selectedTab === 'details' ? COLORS.primary : COLORS.text.secondary}
+            color={selectedTab === 'details' ? COLORS.accent : COLORS.text.secondary}
           />
           <Text style={[styles.tabText, selectedTab === 'details' && styles.activeTabText]}>
             Details
@@ -174,21 +202,27 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
       <ScrollView
         style={styles.contentSection}
         scrollEnabled={selectedTab === 'drive'}
-        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
       >
         {selectedTab === 'drive' ? (
           <View>
             {/* Alternative Routes */}
             <View style={styles.routesContainer}>
               {routes.map((route, index) => (
-                <TouchableOpacity key={index} style={styles.routeOption}>
+                <TouchableOpacity key={index} style={[
+                  styles.routeOption,
+                  route.isRecommended && styles.routeOptionRecommended
+                ]}>
                   <View style={styles.routeOptionContent}>
                     <View style={styles.routeTime}>
                       <Text style={styles.routeTimeText}>
-                        {Math.ceil(route.duration / 60)} min
+                        {Math.ceil(route.duration / 60)}
                       </Text>
+                      <Text style={styles.routeTimeUnit}>min</Text>
                       {route.isRecommended && (
-                        <Text style={styles.recommendedLabel}>Recommended</Text>
+                        <View style={styles.recommendedBadgeSmall}>
+                          <Text style={styles.recommendedLabelSmall}>Recommended</Text>
+                        </View>
                       )}
                     </View>
                     <View style={styles.routeDetails}>
@@ -205,10 +239,12 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
               ))}
             </View>
 
-            {/* Route Info Details */}
+            {/* Route Info Details - Clean Grid */}
             <View style={styles.infoGrid}>
               <View style={styles.infoItem}>
-                <MaterialCommunityIcons name="road" size={20} color={COLORS.primary} />
+                <View style={styles.infoIconContainer}>
+                  <MaterialCommunityIcons name="road" size={18} color={COLORS.accent} />
+                </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Distance</Text>
                   <Text style={styles.infoValue}>{distance.toFixed(2)} km</Text>
@@ -216,7 +252,9 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
               </View>
 
               <View style={styles.infoItem}>
-                <MaterialCommunityIcons name="speedometer" size={20} color={COLORS.primary} />
+                <View style={styles.infoIconContainer}>
+                  <MaterialCommunityIcons name="speedometer" size={18} color={COLORS.accent} />
+                </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Avg Speed</Text>
                   <Text style={styles.infoValue}>
@@ -226,7 +264,9 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
               </View>
 
               <View style={styles.infoItem}>
-                <MaterialCommunityIcons name="clock-outline" size={20} color={COLORS.primary} />
+                <View style={styles.infoIconContainer}>
+                  <MaterialCommunityIcons name="clock-outline" size={18} color={COLORS.accent} />
+                </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Est. Time</Text>
                   <Text style={styles.infoValue}>{minutes} min</Text>
@@ -234,7 +274,9 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
               </View>
 
               <View style={styles.infoItem}>
-                <MaterialCommunityIcons name="traffic-light" size={20} color={trafficColor} />
+                <View style={styles.infoIconContainer}>
+                  <MaterialCommunityIcons name="alert-circle" size={18} color={trafficColor} />
+                </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Traffic</Text>
                   <Text style={[styles.infoValue, { color: trafficColor }]}>
@@ -247,25 +289,50 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
         ) : (
           <View style={styles.detailsContent}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Route Type</Text>
+              <View style={styles.detailLeft}>
+                <View style={styles.detailIconContainer}>
+                  <MaterialCommunityIcons name={getModeIcon(mode)} size={16} color={COLORS.accent} />
+                </View>
+                <Text style={styles.detailLabel}>Route Type</Text>
+              </View>
               <Text style={styles.detailValue}>{getModeLabel(mode)}</Text>
             </View>
             <View style={[styles.detailRow, styles.detailRowBorder]}>
-              <Text style={styles.detailLabel}>Total Distance</Text>
+              <View style={styles.detailLeft}>
+                <View style={styles.detailIconContainer}>
+                  <MaterialCommunityIcons name="map-marker-distance" size={16} color={COLORS.accent} />
+                </View>
+                <Text style={styles.detailLabel}>Total Distance</Text>
+              </View>
               <Text style={styles.detailValue}>{distance.toFixed(2)} km</Text>
             </View>
             <View style={[styles.detailRow, styles.detailRowBorder]}>
-              <Text style={styles.detailLabel}>Estimated Duration</Text>
+              <View style={styles.detailLeft}>
+                <View style={styles.detailIconContainer}>
+                  <MaterialCommunityIcons name="timer" size={16} color={COLORS.accent} />
+                </View>
+                <Text style={styles.detailLabel}>Duration</Text>
+              </View>
               <Text style={styles.detailValue}>{minutes} minutes</Text>
             </View>
             <View style={[styles.detailRow, styles.detailRowBorder]}>
-              <Text style={styles.detailLabel}>Traffic Condition</Text>
+              <View style={styles.detailLeft}>
+                <View style={styles.detailIconContainer}>
+                  <MaterialCommunityIcons name="traffic-light" size={16} color={trafficColor} />
+                </View>
+                <Text style={styles.detailLabel}>Traffic</Text>
+              </View>
               <Text style={[styles.detailValue, { color: trafficColor }]}>
                 {getTrafficLabel(trafficLevel)}
               </Text>
             </View>
             <View style={[styles.detailRow, styles.detailRowBorder]}>
-              <Text style={styles.detailLabel}>Arrival Time</Text>
+              <View style={styles.detailLeft}>
+                <View style={styles.detailIconContainer}>
+                  <MaterialCommunityIcons name="clock-check" size={16} color={COLORS.accent} />
+                </View>
+                <Text style={styles.detailLabel}>Arrival</Text>
+              </View>
               <Text style={styles.detailValue}>{arrivalTime}</Text>
             </View>
           </View>
@@ -277,71 +344,91 @@ export const RouteInfoCard: React.FC<RouteInfoCardProps> = ({
         <TouchableOpacity
           style={[styles.actionButton, styles.startButton]}
           onPress={onStart}
+          activeOpacity={0.85}
         >
-          <MaterialCommunityIcons name="play-circle" size={20} color="white" />
+          <MaterialCommunityIcons name="play-circle" size={18} color="white" style={styles.buttonIcon} />
           <Text style={styles.startButtonText}>Start</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.actionButtonSmall}
           onPress={onAddStops}
+          activeOpacity={0.85}
         >
-          <MaterialCommunityIcons name="plus" size={20} color={COLORS.primary} />
+          <MaterialCommunityIcons name="plus" size={18} color={COLORS.accent} />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.actionButtonSmall}
           onPress={onCancel}
+          activeOpacity={0.85}
         >
-          <MaterialCommunityIcons name="close" size={20} color={COLORS.primary} />
+          <MaterialCommunityIcons name="close" size={18} color={COLORS.accent} />
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
   },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+  },
   summarySection: {
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: COLORS.border,
   },
   mainContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   timeSection: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: SPACING.xs,
   },
   mainTime: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '800',
     color: COLORS.text.primary,
-    lineHeight: 40,
+    lineHeight: 44,
+  },
+  mainUnit: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.secondary,
+    marginBottom: 6,
   },
   arrivalTime: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.text.secondary,
-    marginTop: 2,
+    marginTop: SPACING.sm,
   },
   divider: {
     width: 1,
-    height: 60,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: SPACING.md,
+    height: 70,
+    backgroundColor: COLORS.border,
+    marginHorizontal: SPACING.lg,
   },
   trafficSection: {
-    flex: 0.8,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -359,24 +446,24 @@ const styles = StyleSheet.create({
   recommendedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: COLORS.safe + '15',
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
-    borderRadius: 8,
-    gap: 4,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.xs,
   },
   recommendedText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#22C55E',
+    color: COLORS.safe,
   },
   tabsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.surfaceLight,
   },
   tab: {
     flex: 1,
@@ -384,12 +471,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: SPACING.sm,
-    gap: 6,
-    borderBottomWidth: 3,
+    gap: SPACING.xs,
+    borderBottomWidth: 2.5,
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: COLORS.primary,
+    borderBottomColor: COLORS.accent,
   },
   tabText: {
     fontSize: 13,
@@ -397,24 +484,29 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
   },
   activeTabText: {
-    color: COLORS.primary,
+    color: COLORS.accent,
   },
   contentSection: {
     maxHeight: 300,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
   },
   routesContainer: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
   },
   routeOption: {
-    marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.sm,
-    borderRadius: 10,
-    backgroundColor: '#F9FAFB',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: COLORS.border,
+    ...SHADOWS.xs,
+  },
+  routeOptionRecommended: {
+    backgroundColor: COLORS.accent + '08',
+    borderColor: COLORS.accent,
   },
   routeOptionContent: {
     flexDirection: 'row',
@@ -424,29 +516,36 @@ const styles = StyleSheet.create({
   routeTime: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING.sm,
   },
   routeTimeText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: COLORS.text.primary,
   },
-  recommendedLabel: {
+  routeTimeUnit: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#22C55E',
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 8,
+    color: COLORS.text.secondary,
+  },
+  recommendedBadgeSmall: {
+    backgroundColor: COLORS.safe + '20',
+    paddingHorizontal: SPACING.xs,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: BORDER_RADIUS.xs,
+  },
+  recommendedLabelSmall: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.safe,
   },
   routeDetails: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING.md,
   },
   routeDistance: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.text.secondary,
     fontWeight: '500',
   },
@@ -457,30 +556,39 @@ const styles = StyleSheet.create({
   },
   infoGrid: {
     marginTop: SPACING.md,
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    ...SHADOWS.xs,
+    gap: SPACING.md,
+  },
+  infoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.accent + '12',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   infoContent: {
     flex: 1,
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.text.secondary,
     fontWeight: '500',
+    marginBottom: 2,
   },
   infoValue: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.text.primary,
-    marginTop: 2,
   },
   detailsContent: {
     paddingVertical: SPACING.sm,
@@ -489,56 +597,74 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.lg,
   },
   detailRowBorder: {
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: COLORS.border,
+  },
+  detailLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  detailIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.accent + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   detailLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.text.secondary,
     fontWeight: '500',
   },
   detailValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text.primary,
   },
   actionsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    gap: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.surfaceLight,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: SPACING.sm,
+    ...SHADOWS.sm,
   },
   startButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.accent,
   },
   startButtonText: {
-    color: 'white',
+    color: COLORS.text.inverse,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 15,
+  },
+  buttonIcon: {
+    marginRight: SPACING.xs,
   },
   actionButtonSmall: {
     width: 48,
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#F0F4FF',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: COLORS.accent + '12',
+    borderWidth: 1.5,
+    borderColor: COLORS.accent,
+    ...SHADOWS.xs,
   },
 });

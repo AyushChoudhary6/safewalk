@@ -62,7 +62,8 @@ export const fetchLocationSuggestions = async (
   if (!query || query.length < 3) return [];
   
   try {
-    let url = `https://api.openrouteservice.org/geocode/autocomplete?api_key=${OPENROUTE_API_KEY}&text=${encodeURIComponent(query)}`;
+    // Setup boundary country to India to prefer Indian locations
+    let url = `https://api.openrouteservice.org/geocode/autocomplete?api_key=${OPENROUTE_API_KEY}&text=${encodeURIComponent(query)}&boundary.country=IND`;
     
     // Bias results towards the user's current location if available
     if (focusLocation) {
@@ -231,6 +232,9 @@ export const fetchRoute = async (
       let errorMsg = 'Unknown OpenRouteService error';
       if (data.error) {
         errorMsg = typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error);
+        if (errorMsg.includes('must not be greater than')) {
+          errorMsg = 'The selected route distance is too far. Please select a closer destination within India.';
+        }
       } else if (data.info) {
         errorMsg = typeof data.info === 'string' ? data.info : JSON.stringify(data.info);
       }

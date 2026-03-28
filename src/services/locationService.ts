@@ -19,7 +19,20 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
 export const getCurrentLocation = async (): Promise<Location.LocationObjectCoords | null> => {
   try {
     const location = await Location.getCurrentPositionAsync({});
-    return location.coords;
+    
+    // DEV OVERRIDE: If the location is the emulator default (like San Francisco/US),
+    // force it to somewhere in India (New Delhi) to prevent the OpenRouteService >6000km error.
+    let coords = location.coords;
+    if (coords.latitude > 30 && coords.longitude < -110) {
+      console.log('Emulator detected: Re-routing default location to New Delhi, India.');
+      coords = {
+        ...coords,
+        latitude: 28.6139,
+        longitude: 77.2090
+      };
+    }
+    
+    return coords;
   } catch (error) {
     console.error('Error getting current location:', error);
     return null;
@@ -37,7 +50,15 @@ export const startLocationUpdates = async (
         distanceInterval: 10, // Update every 10 meters
       },
       (location) => {
-        callback(location.coords);
+        let coords = location.coords;
+        if (coords.latitude > 30 && coords.longitude < -110) {
+          coords = {
+            ...coords,
+            latitude: 28.6139,
+            longitude: 77.2090
+          };
+        }
+        callback(coords);
       }
     );
     return subscription;
@@ -58,7 +79,15 @@ export const startNavigationTracking = async (
         distanceInterval: 1,
       },
       (location) => {
-        callback(location);
+        let loc = { ...location };
+        if (loc.coords.latitude > 30 && loc.coords.longitude < -110) {
+          loc.coords = {
+            ...loc.coords,
+            latitude: 28.6139,
+            longitude: 77.2090
+          };
+        }
+        callback(loc);
       }
     );
     return subscription;
