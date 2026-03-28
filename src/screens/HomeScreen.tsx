@@ -5,10 +5,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IncidentMarker } from '../components/IncidentMarker';
-import MapView, { Circle, Marker, Polyline } from '../components/Map';
+import MapView, { Marker, Polyline, Circle } from '../components/Map';
 import { SearchBar } from '../components/Map/SearchBar';
+import { CustomMapPin } from '../components/Map/CustomMapPin';
 import { useBackendSOS } from '../hooks/useBackendSOS';
-import { PlaceData, PlaceDrawer } from '../components/PlaceDrawer';
 import { RouteDrawer } from '../components/RouteDrawer';
 import { Incident, mockIncidents } from '../data/mockIncidents';
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -41,7 +41,6 @@ export const HomeScreen: React.FC = () => {
   const mapRef = useRef<MapView>(null);
   const locationSubRef = useRef<LocationSubscription | null>(null);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
-  const [selectedPlace, setSelectedPlace] = useState<PlaceData | null>(null);
 
   useEffect(() => {
     setupLocation();
@@ -411,53 +410,11 @@ export const HomeScreen: React.FC = () => {
           showsUserLocation={true}
           showsMyLocationButton={false}
         >
-        {location && (
-          <>
-            <Marker
-              coordinate={{ latitude: location.latitude + 0.005, longitude: location.longitude + 0.005 }}
-              title="Central Park"
-              pinColor="green"
-              onPress={() => setSelectedPlace({
-                id: '1',
-                name: 'Central Park',
-                address: '123 Park Ave, New York, NY 10022',
-                duration: '15 min',
-                distance: '2.5 km',
-                type: 'Park',
-                photos: ['https://picsum.photos/400/400?random=4', 'https://picsum.photos/200/200?random=5', 'https://picsum.photos/200/200?random=6']
-              })}
-            />
-            <Marker
-              coordinate={{ latitude: location.latitude - 0.005, longitude: location.longitude - 0.005 }}
-              title="City Coffee"
-              pinColor="orange"
-              onPress={() => setSelectedPlace({
-                id: '2',
-                name: 'City Coffee',
-                address: '456 Cafe St, New York, NY 10021',
-                duration: '5 min',
-                distance: '0.8 km',
-                type: 'Cafe',
-                photos: ['https://picsum.photos/400/400?random=1', 'https://picsum.photos/200/200?random=2', 'https://picsum.photos/200/200?random=3']
-              })}
-            />
-          </>
-        )}
-
-        {location && (
-          <Marker
-            coordinate={location}
-            title="You are here"
-            pinColor="blue"
-          />
-        )}
         
         {destination && (
-          <Marker
-            coordinate={destination}
-            title="Destination"
-            pinColor="red"
-          />
+          <Marker coordinate={destination} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
+            <CustomMapPin type="destination" label="Dest" />
+          </Marker>
         )}
 
         {/* Route rendering by Segments for risk highlighting */}
@@ -482,20 +439,34 @@ export const HomeScreen: React.FC = () => {
           ) : null
         )}
 
-        {/* Detected Crime Incidents */}
+        {/* Crime Incident Markers — professional branded pins */}
         {((Array.isArray(activeIncidents) && activeIncidents.length > 0) ? activeIncidents : mockIncidents).map((incident) => (
           <React.Fragment key={`incident-${incident.id || Math.random()}`}>
-            <Circle
-              center={{ 
-                latitude: Number(incident.latitude) || 0, 
-                longitude: Number(incident.longitude) || 0 
+            {/* Subtle danger ring only for high-severity (4+) incidents */}
+            {incident.severity >= 4 && (
+              <Circle
+                center={{ 
+                  latitude: Number(incident.latitude) || 0, 
+                  longitude: Number(incident.longitude) || 0 
+                }}
+                radius={120}
+                fillColor="rgba(239, 68, 68, 0.08)"
+                strokeColor="rgba(239, 68, 68, 0.30)"
+                strokeWidth={1}
+              />
+            )}
+            <IncidentMarker 
+              incident={incident} 
+              onPress={() => {
+                // Animate camera to the tapped incident for context
+                if (mapRef.current) {
+                  mapRef.current.animateCamera(
+                    { center: { latitude: Number(incident.latitude) || 0, longitude: Number(incident.longitude) || 0 }, zoom: 16 },
+                    { duration: 600 }
+                  );
+                }
               }}
-              radius={200}
-              fillColor="rgba(239, 68, 68, 0.15)"
-              strokeColor="rgba(239, 68, 68, 0.5)"
-              strokeWidth={1}
             />
-            <IncidentMarker incident={incident} />
           </React.Fragment>
         ))}
       </MapView>
@@ -590,20 +561,6 @@ export const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
     
-      
-      <PlaceDrawer
-        place={selectedPlace}
-        onClose={() => setSelectedPlace(null)}
-        isVisible={!routeParams && !!selectedPlace}
-        onDirections={(place: any) => {
-          if (location) {
-            calculateRoute({
-              latitude: location.latitude + 0.005,
-              longitude: location.longitude + 0.005
-            }, routeMode);
-          }
-        }}
-      />
       <RouteDrawer
         distance={routeParams?.distance || 0}
         duration={routeParams?.duration || 0}

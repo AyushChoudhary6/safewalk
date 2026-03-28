@@ -138,13 +138,14 @@ export const ReportIncidentScreen: React.FC<ReportIncidentScreenProps> = ({
           url: error.config?.url,
         },
       });
-      if (Platform.OS === 'web') alert(`Error: ${error.message || 'Failed to submit report. Please try again.'}`);
+      const msg =
+        error?.response?.data?.error ||
+        error?.message ||
+        'Network error — make sure the SafeWalk backend is running.';
       
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to submit report. Please try again.',
-        [{ text: 'OK' }]
-      );
+      if (Platform.OS === 'web') alert(`Submission Failed: ${msg}`);
+      
+      Alert.alert('Submission Failed', msg, [{ text: 'OK' }]);
     } finally {
       setSubmitting(false);
     }

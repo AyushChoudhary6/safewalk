@@ -4,6 +4,12 @@
 
 SafeWalk is a production-quality React Native mobile application that helps users choose safer walking routes, report safety incidents, receive alerts, request escorts, and trigger emergency safety checks.
 
+<!-- Adding the video from assets/images/Anatomy_of_an_app -->
+
+<video src="assets\images\Anatomy_of_an_App__SafeWalk.mp4" width="600" controls>
+  Your browser does not support the video tag.
+</video>
+
 ---
 
 ## ✨ Key Features

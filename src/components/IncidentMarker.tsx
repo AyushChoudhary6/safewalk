@@ -1,37 +1,50 @@
+﻿/**
+ * IncidentMarker
+ * Renders a single incident as a branded custom map pin.
+ * Imported by HomeScreen and placed inside <MapView>.
+ */
+
 import React from 'react';
-import { Marker } from './Map';
+import { Marker } from './Map'; // re-export from src/components/Map/index.ts
 import { Incident } from '../data/mockIncidents';
+import { CustomMapPin, PinType } from './Map/CustomMapPin';
 
 interface Props {
   incident: Incident;
   onPress?: () => void;
 }
 
-export const IncidentMarker: React.FC<Props> = ({ incident, onPress }) => {
-  const getSeverityInfo = (severity: number) => {
-    if (severity >= 5) return { color: 'red', label: 'High Alert' };
-    if (severity >= 3) return { color: 'orange', label: 'Orange Alert' };
-    return { color: 'yellow', label: 'Yellow Alert' };
-  };
+// Map backend enum strings → PinType
+const TYPE_MAP: Record<string, PinType> = {
+  THEFT: 'THEFT',
+  HARASSMENT: 'HARASSMENT',
+  POOR_LIGHTING: 'POOR_LIGHTING',
+  ASSAULT: 'ASSAULT',
+  SUSPICIOUS_ACTIVITY: 'SUSPICIOUS_ACTIVITY',
+};
 
-  const severityInfo = getSeverityInfo(incident.severity || 1);
-  const baseTitle = incident.type ? incident.type.replace('_', ' ') : 'Unknown';
-  const markerTitle = `${severityInfo.label}: ${baseTitle}`;
-  const formattedDate = incident.timestamp ? new Date(incident.timestamp).toLocaleDateString() : 'Recent';
-  const fullDescription = incident.description 
-    ? `${incident.description} (${formattedDate})`
-    : `Date: ${formattedDate}`;
+// Short labels shown below the pin bubble
+const LABEL_MAP: Record<string, string> = {
+  THEFT: 'Theft',
+  HARASSMENT: 'Harass.',
+  POOR_LIGHTING: 'Lighting',
+  ASSAULT: 'Assault',
+  SUSPICIOUS_ACTIVITY: 'Suspic.',
+};
+
+export const IncidentMarker: React.FC<Props> = ({ incident, onPress }) => {
+  const pinType: PinType = TYPE_MAP[incident.type] ?? 'SUSPICIOUS_ACTIVITY';
+  const label = LABEL_MAP[incident.type] ?? 'Incident';
 
   return (
     <Marker
-      coordinate={{
-        latitude: Number(incident.latitude) || 0,
-        longitude: Number(incident.longitude) || 0
-      }}
-      title={markerTitle}
-      description={fullDescription}
-      pinColor={severityInfo.color}
+      coordinate={{ latitude: incident.latitude, longitude: incident.longitude }}
       onPress={onPress}
-    />
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={false} // important for performance — prevents re-render on every map frame
+    >
+      <CustomMapPin type={pinType} label={label} />
+    </Marker>
   );
 };
+

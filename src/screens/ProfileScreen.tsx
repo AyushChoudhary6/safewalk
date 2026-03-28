@@ -1,4 +1,4 @@
-import FirebaseService from '../services/firebaseService';
+import FirebaseService, { auth } from '../services/firebaseService';
 /**
  * ProfileScreen
  * User profile and settings
@@ -7,7 +7,7 @@ import FirebaseService from '../services/firebaseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Alert,
     ScrollView,
@@ -16,6 +16,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -41,6 +42,34 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [notifications, setNotifications] = useState(true);
   const [locationSharing, setLocationSharing] = useState(true);
   const [emergencyAlerts, setEmergencyAlerts] = useState(true);
+
+  const [userData, setUserData] = useState<{ name: string; email: string }>({   
+    name: 'SafeWalk User',
+    email: 'Loading...',
+  });
+
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      setUserData({
+        name: currentUser.displayName || currentUser.email?.split('@')[0] || 'SafeWalk User',
+        email: currentUser.email || 'user@example.com',
+      });
+    }
+  }, []);
+
+  const handleFeatureNotReady = (featureName: string) => {
+    Alert.alert(
+      featureName,
+      'This feature is currently under development. Check back in a future update!',
+      [{ text: 'Got it' }]
+    );
+  };
+
+  const handleSupport = () => {
+    Linking.openURL('mailto:support@safewalk.app?subject=SafeWalk Help & Support Request')
+      .catch((err) => Alert.alert('Error', 'Unable to open email client.'));    
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -79,8 +108,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
 
           <View style={styles.profileInfo}>
-            <Text style={styles.userName}>Alex Johnson</Text>
-            <Text style={styles.userEmail}>alex@example.com</Text>
+            <Text style={styles.userName}>{userData.name}</Text>
+            <Text style={styles.userEmail}>{userData.email}</Text>
             <View style={styles.trustBadge}>
               <MaterialCommunityIcons
                 name="check-decagram"
@@ -127,7 +156,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <Text style={styles.sectionTitle}>Account</Text>
 
           {/* Profile */}
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady("Edit Profile")}>
             <View style={styles.settingIcon}>
               <MaterialCommunityIcons name="account-circle-outline" size={20} color={COLORS.primary} />
             </View>
@@ -139,7 +168,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
 
           {/* Timeline */}
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady("Timeline History")}>
             <View style={styles.settingIcon}>
               <MaterialCommunityIcons name="clock-time-four-outline" size={20} color={COLORS.primary} />
             </View>
@@ -151,7 +180,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
 
           {/* Location sharing */}
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady("Location Sharing")}>
             <View style={styles.settingIcon}>
               <MaterialCommunityIcons name="map-marker-account-outline" size={20} color={COLORS.primary} />
             </View>
@@ -163,7 +192,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
 
           {/* Offline maps */}
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady("Offline Maps")}>
             <View style={styles.settingIcon}>
               <MaterialCommunityIcons name="cloud-download-outline" size={20} color={COLORS.primary} />
             </View>
@@ -175,7 +204,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
 
           {/* Your data in maps */}
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady("Your Data & Privacy")}>
             <View style={styles.settingIcon}>
               <MaterialCommunityIcons name="shield-account-outline" size={20} color={COLORS.primary} />
             </View>
@@ -335,7 +364,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleSupport}>
             <View style={styles.settingIcon}>
               <MaterialCommunityIcons
                 name="help-circle"
