@@ -108,3 +108,49 @@ export const sendSOSMessage = async (phone: string, locationLink: string): Promi
     return false;
   }
 };
+import { apiService } from './apiService';
+import { getCurrentLocation } from './locationService';
+
+export const sendEmergencyAlerts = async ({ triggerReason }: { triggerReason: string }) => {
+  try {
+    const contacts = await getContacts();
+    if (contacts.length === 0) {
+      console.warn('No emergency contacts found to alert.');
+      return false;
+    }
+
+    const loc = await getCurrentLocation();
+    const lat = loc?.latitude || 0;
+    const lng = loc?.longitude || 0;
+    
+    const locationLink = "https://maps.google.com/?q=${lat},${lng}";
+
+    // 1. Try FCM Backend Route first (Step 5 in Prompt)
+    try {
+      await apiService.post('/sos/escalate', {
+        status: triggerReason,
+        location: { lat, lng }
+      });
+      // If it succeeds, the backend handles notifying FCM/Trusted Contacts
+      console.log('Successfully dispatched FCM via backend.');
+    } catch (networkError) {
+      console.warn('Network unavailable or server failed. Dropping to offline SMS Fallback.');
+      
+      // 2. Offline SMS Fallback using expo-sms
+      const phoneNumbers = contacts.map(c => c.phone);
+      const isAvailable = await SMS.isAvailableAsync();
+      
+      if (isAvailable) {
+        const message = "?? EMERGENCY! SafeWalk auto-escalation triggered. User may be unresponsive. Last location: ${locationLink}";
+        await SMS.sendSMSAsync(phoneNumbers, message);
+      } else {
+        Alert.alert('Fatal Error', 'No network to reach backend and SMS is unavailable on this device.');
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error escalating emergency:', error);
+    return false;
+  }
+};

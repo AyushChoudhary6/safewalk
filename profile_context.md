@@ -20,9 +20,11 @@
 ## Change 1 — Make the Profile Info Dynamic
 
 ### Context
-Currently, the `<View style={styles.profileInfo}>` hardcodes the name "Alex Johnson" and email "alex@example.com". We need to hydrate this using the active Firebase user from `src/services/firebaseService.ts`.
+
+Currently, the `<View style={styles.profileInfo}>` hardcodes the name "Alex Johnson" and email "<alex@example.com>". We need to hydrate this using the active Firebase user from `src/services/firebaseService.ts`.
 
 ### Step 1a — Import `auth` and Add State
+
 Open `src/screens/ProfileScreen.tsx`.
 At the top of the file, import `useEffect` and `useState` (if not already imported), and import `auth` alongside the default `FirebaseService`:
 
@@ -51,7 +53,8 @@ Inside the `ProfileScreen` component, right after the other `useState` calls, ad
 ```
 
 ### Step 1b — Update the Header JSX
-Find the hardcoded "Alex Johnson" and "alex@example.com" text nodes within `styles.profileInfo`:
+
+Find the hardcoded "Alex Johnson" and "<alex@example.com>" text nodes within `styles.profileInfo`:
 
 ```tsx
 <View style={styles.profileInfo}>
@@ -60,6 +63,7 @@ Find the hardcoded "Alex Johnson" and "alex@example.com" text nodes within `styl
   <View style={styles.trustBadge}>
 ...
 ```
+
 Replace the hardcoded strings with `{userData.name}` and `{userData.email}`.
 
 ---
@@ -67,9 +71,11 @@ Replace the hardcoded strings with `{userData.name}` and `{userData.email}`.
 ## Change 2 — Hook Up Empty "Account Options" Actions
 
 ### Context
+
 Right now, the list options for **"Profile", "Timeline", "Location sharing", "Offline maps", and "Your data in maps"** are dead `<TouchableOpacity>` blocks with no feedback. We'll wire them up to a unified "Coming Soon" notification so the app feels robust during the MVP phase.
 
 ### Step 2a — Create a Global Feedback Handler
+
 Inside the `ProfileScreen` component function (above `handleLogout`), create this handler:
 
 ```tsx
@@ -83,25 +89,35 @@ Inside the `ProfileScreen` component function (above `handleLogout`), create thi
 ```
 
 ### Step 2b — Inject `onPress` Props into the UI
+
 Scroll down to the `{/* Account Options */}` section. Add the `onPress` prop to each `<TouchableOpacity style={styles.settingItem}>`:
 
 1. **Profile**:
+
    ```tsx
    <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady('Edit Profile')}>
    ```
+
 2. **Timeline**:
+
    ```tsx
    <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady('Timeline History')}>
    ```
+
 3. **Location sharing**:
+
    ```tsx
    <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady('Location Sharing')}>
    ```
+
 4. **Offline maps**:
+
    ```tsx
    <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady('Offline Maps')}>
    ```
+
 5. **Your data in maps**:
+
    ```tsx
    <TouchableOpacity style={styles.settingItem} onPress={() => handleFeatureNotReady('Your Data & Privacy')}>
    ```
@@ -111,15 +127,19 @@ Scroll down to the `{/* Account Options */}` section. Add the `onPress` prop to 
 ## Change 3 — Implement "Help & Support"
 
 ### Context
+
 In the `{/* About */}` section at the very bottom, "Help & Support" should act as an actual pipeline to contact the SafeWalk team.
 
 ### Step 3a — Import `Linking`
+
 At the top of `ProfileScreen.tsx`, ensure `Linking` is imported from `react-native`:
+
 ```tsx
 import { Alert, Linking, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 ```
 
 ### Step 3b — Add Support Handler
+
 Add the support handler right below your `handleFeatureNotReady` function:
 
 ```tsx
@@ -130,6 +150,7 @@ Add the support handler right below your `handleFeatureNotReady` function:
 ```
 
 ### Step 3c — Attach to the Support Button
+
 Locate `{/* Help & Support */}` and add `onPress`:
 
 ```tsx
